@@ -1,4 +1,4 @@
--- Base & Animal Automation LocalScript (Clean Version)
+-- Base & Animal Automation LocalScript (Complete Clean Version)
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,11 +7,42 @@ local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Warten bis der Spieler geladen ist
-local character = localPlayer.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+print("=== STARTING BASE AUTOMATION ===")
 
--- GUI erstellen
+-- Warte auf Character
+local character = nil
+local humanoidRootPart = nil
+
+local function waitForCharacter()
+    print("Waiting for character...")
+    
+    if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        character = localPlayer.Character
+        humanoidRootPart = character.HumanoidRootPart
+        print("Character found immediately:", character.Name)
+        return
+    end
+    
+    localPlayer.CharacterAdded:Connect(function(newCharacter)
+        print("Character spawned:", newCharacter.Name)
+        character = newCharacter
+        humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+        print("HumanoidRootPart found")
+    end)
+    
+    if localPlayer.Character then
+        character = localPlayer.Character
+        humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+        print("Character found, waited for HumanoidRootPart")
+    end
+end
+
+waitForCharacter()
+wait(1) -- Kurze Pause
+
+print("Creating GUI...")
+
+-- === GUI CREATION ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BaseAutomationGUI"
 screenGui.Parent = playerGui
@@ -24,6 +55,7 @@ frame.BorderSizePixel = 2
 frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 frame.Parent = screenGui
 
+-- Title
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0, 0)
@@ -45,7 +77,7 @@ moneyLabel.TextScaled = true
 moneyLabel.Font = Enum.Font.SourceSans
 moneyLabel.Parent = frame
 
--- Base Features Label
+-- Base Features Header
 local baseLabel = Instance.new("TextLabel")
 baseLabel.Size = UDim2.new(1, 0, 0, 20)
 baseLabel.Position = UDim2.new(0, 0, 0, 50)
@@ -56,7 +88,7 @@ baseLabel.TextScaled = true
 baseLabel.Font = Enum.Font.SourceSans
 baseLabel.Parent = frame
 
--- Lock Door Checkbox
+-- Lock Door Button
 local lockDoorCheck = Instance.new("TextButton")
 lockDoorCheck.Size = UDim2.new(1, -10, 0, 25)
 lockDoorCheck.Position = UDim2.new(0, 5, 0, 70)
@@ -67,7 +99,7 @@ lockDoorCheck.TextScaled = true
 lockDoorCheck.Font = Enum.Font.SourceSans
 lockDoorCheck.Parent = frame
 
--- Collect Money Checkbox
+-- Collect Money Button
 local collectMoneyCheck = Instance.new("TextButton")
 collectMoneyCheck.Size = UDim2.new(1, -10, 0, 25)
 collectMoneyCheck.Position = UDim2.new(0, 5, 0, 95)
@@ -78,7 +110,7 @@ collectMoneyCheck.TextScaled = true
 collectMoneyCheck.Font = Enum.Font.SourceSans
 collectMoneyCheck.Parent = frame
 
--- Animal Features Label
+-- Animal Features Header
 local animalLabel = Instance.new("TextLabel")
 animalLabel.Size = UDim2.new(1, 0, 0, 20)
 animalLabel.Position = UDim2.new(0, 0, 0, 125)
@@ -89,7 +121,7 @@ animalLabel.TextScaled = true
 animalLabel.Font = Enum.Font.SourceSans
 animalLabel.Parent = frame
 
--- Buy Best Checkbox
+-- Buy Best Button
 local buyBestCheck = Instance.new("TextButton")
 buyBestCheck.Size = UDim2.new(1, -10, 0, 25)
 buyBestCheck.Position = UDim2.new(0, 5, 0, 145)
@@ -100,7 +132,7 @@ buyBestCheck.TextScaled = true
 buyBestCheck.Font = Enum.Font.SourceSans
 buyBestCheck.Parent = frame
 
--- Buy Custom Checkbox
+-- Buy Custom Button
 local buyCustomCheck = Instance.new("TextButton")
 buyCustomCheck.Size = UDim2.new(1, -10, 0, 25)
 buyCustomCheck.Position = UDim2.new(0, 5, 0, 170)
@@ -111,7 +143,7 @@ buyCustomCheck.TextScaled = true
 buyCustomCheck.Font = Enum.Font.SourceSans
 buyCustomCheck.Parent = frame
 
--- Min Price Input
+-- Min Price Label
 local minPriceLabel = Instance.new("TextLabel")
 minPriceLabel.Size = UDim2.new(0.5, -5, 0, 20)
 minPriceLabel.Position = UDim2.new(0, 5, 0, 195)
@@ -122,6 +154,7 @@ minPriceLabel.TextScaled = true
 minPriceLabel.Font = Enum.Font.SourceSans
 minPriceLabel.Parent = frame
 
+-- Min Price Input
 local minPriceInput = Instance.new("TextBox")
 minPriceInput.Size = UDim2.new(0.5, -5, 0, 20)
 minPriceInput.Position = UDim2.new(0.5, 5, 0, 195)
@@ -132,7 +165,7 @@ minPriceInput.TextScaled = true
 minPriceInput.Font = Enum.Font.SourceSans
 minPriceInput.Parent = frame
 
--- Max Price Input
+-- Max Price Label
 local maxPriceLabel = Instance.new("TextLabel")
 maxPriceLabel.Size = UDim2.new(0.5, -5, 0, 20)
 maxPriceLabel.Position = UDim2.new(0, 5, 0, 215)
@@ -143,6 +176,7 @@ maxPriceLabel.TextScaled = true
 maxPriceLabel.Font = Enum.Font.SourceSans
 maxPriceLabel.Parent = frame
 
+-- Max Price Input
 local maxPriceInput = Instance.new("TextBox")
 maxPriceInput.Size = UDim2.new(0.5, -5, 0, 20)
 maxPriceInput.Position = UDim2.new(0.5, 5, 0, 215)
@@ -153,7 +187,7 @@ maxPriceInput.TextScaled = true
 maxPriceInput.Font = Enum.Font.SourceSans
 maxPriceInput.Parent = frame
 
--- Buy All Checkbox
+-- Buy All Button
 local buyAllCheck = Instance.new("TextButton")
 buyAllCheck.Size = UDim2.new(1, -10, 0, 25)
 buyAllCheck.Position = UDim2.new(0, 5, 0, 235)
@@ -170,12 +204,14 @@ statusLabel.Size = UDim2.new(1, -10, 0, 20)
 statusLabel.Position = UDim2.new(0, 5, 0, 265)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-statusLabel.Text = "Initializing..."
+statusLabel.Text = "Ready - Searching for base..."
 statusLabel.TextScaled = true
 statusLabel.Font = Enum.Font.SourceSans
 statusLabel.Parent = frame
 
--- Variablen
+print("GUI created successfully!")
+
+-- === VARIABLES ===
 local playerBase = nil
 local lockDoorEnabled = false
 local collectMoneyEnabled = false
@@ -185,10 +221,10 @@ local buyAllEnabled = false
 local isAtBase = false
 local playerMoney = 0
 
--- Funktion: Spieler-Geld ermitteln
+-- === FUNCTIONS ===
+
+-- Get Player Money
 local function getPlayerMoney()
-    local playerGui = localPlayer:WaitForChild("PlayerGui")
-    
     for _, gui in pairs(playerGui:GetChildren()) do
         for _, child in pairs(gui:GetDescendants()) do
             if child:IsA("TextLabel") then
@@ -228,7 +264,147 @@ local function getPlayerMoney()
     return 0
 end
 
--- Funktion: Preis aus Animal-GUI extrahieren
+-- Find Player Base
+local function findPlayerBase()
+    if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local workspace = game:GetService("Workspace")
+    local plots = workspace:FindFirstChild("Plots")
+    
+    if not plots then 
+        statusLabel.Text = "No plots found!"
+        return nil 
+    end
+    
+    local playerPos = localPlayer.Character.HumanoidRootPart.Position
+    local nearestPlot = nil
+    local nearestDistance = math.huge
+    
+    print("Searching for player base from position:", playerPos)
+    
+    for _, plot in pairs(plots:GetChildren()) do
+        local spawn = plot:FindFirstChild("Spawn")
+        if spawn then
+            local distance = (playerPos - spawn.Position).Magnitude
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestPlot = plot
+            end
+        end
+    end
+    
+    if nearestPlot then
+        print("Found nearest plot:", nearestPlot.Name, "at distance:", nearestDistance)
+    end
+    
+    return nearestPlot
+end
+
+-- Check if laser is active
+local function isLaserActive(base)
+    local laser = base:FindFirstChild("Laser")
+    if not laser then return false end
+    
+    for _, laserPart in pairs(laser:GetChildren()) do
+        if laserPart:IsA("Model") then
+            for _, part in pairs(laserPart:GetChildren()) do
+                if part:IsA("BasePart") and part.Transparency < 1 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Touch door hitbox (CORRECTED FOR FOLDER STRUCTURE)
+local function touchDoorHitbox()
+    if not playerBase or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    print("Looking for door hitbox in base:", playerBase.Name)
+    
+    local purchases = playerBase:FindFirstChild("Purchases")
+    if not purchases then
+        statusLabel.Text = "Purchases folder not found"
+        print("Error: Purchases folder not found")
+        return
+    end
+    
+    local plotBlock = purchases:FindFirstChild("PlotBlock")
+    if not plotBlock then
+        statusLabel.Text = "PlotBlock not found"
+        print("Error: PlotBlock not found in Purchases")
+        return
+    end
+    
+    local hitbox = plotBlock:FindFirstChild("Hitbox")
+    if not hitbox then
+        statusLabel.Text = "Hitbox not found"
+        print("Error: Hitbox not found in PlotBlock")
+        return
+    end
+    
+    if hitbox:FindFirstChild("TouchInterest") then
+        statusLabel.Text = "Door activated!"
+        print("TouchInterest found! Touching hitbox...")
+        hitbox:Touch(localPlayer.Character.HumanoidRootPart)
+        print("Door hitbox touched successfully!")
+    else
+        statusLabel.Text = "TouchInterest not found"
+        print("Error: TouchInterest not found in hitbox")
+    end
+end
+
+-- Tween to base
+local function tweenToBase()
+    if not playerBase then return end
+    local spawn = playerBase:FindFirstChild("Spawn")
+    if not spawn or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    statusLabel.Text = "Moving to base..."
+    local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(
+        localPlayer.Character.HumanoidRootPart,
+        tweenInfo,
+        {Position = spawn.Position + Vector3.new(0, 5, 0)}
+    )
+    tween:Play()
+    tween.Completed:Connect(function()
+        statusLabel.Text = "At base - activating door"
+        wait(0.5)
+        touchDoorHitbox()
+    end)
+end
+
+-- Collect money
+local function collectMoney()
+    if not playerBase or not collectMoneyEnabled or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local purchases = playerBase:FindFirstChild("Purchases")
+    if purchases then
+        for _, purchase in pairs(purchases:GetChildren()) do
+            if purchase:IsA("Model") then
+                local hitbox = purchase:FindFirstChild("Hitbox")
+                if hitbox and hitbox:FindFirstChild("TouchInterest") then
+                    hitbox:Touch(localPlayer.Character.HumanoidRootPart)
+                end
+            end
+        end
+    end
+end
+
+-- Check if at base
+local function checkIfAtBase()
+    if not playerBase or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return false end
+    local spawn = playerBase:FindFirstChild("Spawn")
+    if not spawn then return false end
+    local distance = (localPlayer.Character.HumanoidRootPart.Position - spawn.Position).Magnitude
+    return distance < 50
+end
+
+-- Get animal price
 local function getAnimalPrice(animal)
     local animalOverhead = animal:FindFirstChild("AnimalOverhead")
     if not animalOverhead then return nil end
@@ -249,7 +425,7 @@ local function getAnimalPrice(animal)
     return nil
 end
 
--- Funktion: Finde bestes kaufbares Tier
+-- Find best affordable animal
 local function findBestAffordableAnimal()
     local workspace = game:GetService("Workspace")
     local movingAnimals = workspace:FindFirstChild("MovingAnimals")
@@ -272,7 +448,7 @@ local function findBestAffordableAnimal()
     return bestAnimal, bestPrice
 end
 
--- Funktion: Finde Tier im Preisbereich
+-- Find animal in price range
 local function findAnimalInPriceRange(minPrice, maxPrice)
     local workspace = game:GetService("Workspace")
     local movingAnimals = workspace:FindFirstChild("MovingAnimals")
@@ -295,7 +471,7 @@ local function findAnimalInPriceRange(minPrice, maxPrice)
     return bestAnimal, bestPrice
 end
 
--- Funktion: Finde teuerstes kaufbares Tier
+-- Find most expensive affordable animal
 local function findMostExpensiveAffordableAnimal()
     local workspace = game:GetService("Workspace")
     local movingAnimals = workspace:FindFirstChild("MovingAnimals")
@@ -318,7 +494,7 @@ local function findMostExpensiveAffordableAnimal()
     return bestAnimal, bestPrice
 end
 
--- Funktion: Zu Tier bewegen und kaufen
+-- Move to animal and buy
 local function moveToAnimalAndBuy(animal)
     if not animal or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
         return
@@ -347,135 +523,18 @@ local function moveToAnimalAndBuy(animal)
     end)
 end
 
--- Funktion: Eigene Base finden
-local function findPlayerBase()
-    local workspace = game:GetService("Workspace")
-    local plots = workspace:FindFirstChild("Plots")
-    if not plots or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        return nil
-    end
-    
-    local playerPos = localPlayer.Character.HumanoidRootPart.Position
-    local nearestPlot = nil
-    local nearestDistance = math.huge
-    
-    for _, plot in pairs(plots:GetChildren()) do
-        local spawn = plot:FindFirstChild("Spawn")
-        if spawn then
-            local distance = (playerPos - spawn.Position).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestPlot = plot
-            end
-        end
-    end
-    return nearestPlot
-end
+-- === EVENT HANDLERS ===
 
--- Funktion: Laser-Status überprüfen
-local function isLaserActive(base)
-    local laser = base:FindFirstChild("Laser")
-    if not laser then return false end
-    
-    for _, laserPart in pairs(laser:GetChildren()) do
-        if laserPart:IsA("Model") then
-            for _, part in pairs(laserPart:GetChildren()) do
-                if part:IsA("BasePart") and part.Transparency < 1 then
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
-
--- Funktion: Zum Base tweenen
-local function tweenToBase()
-    if not playerBase then return end
-    local spawn = playerBase:FindFirstChild("Spawn")
-    if not spawn or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    statusLabel.Text = "Moving to base..."
-    local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(
-        localPlayer.Character.HumanoidRootPart,
-        tweenInfo,
-        {Position = spawn.Position + Vector3.new(0, 5, 0)}
-    )
-    tween:Play()
-    tween.Completed:Connect(function()
-        statusLabel.Text = "At base - searching for door"
-        wait(0.5)
-        touchDoorHitbox()
-    end)
-end
-
--- Funktion: Door Hitbox berühren (KORRIGIERT)
-local function touchDoorHitbox()
-    if not playerBase or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local purchases = playerBase:FindFirstChild("Purchases")
-    if not purchases then
-        statusLabel.Text = "Purchases folder not found"
-        return
-    end
-    
-    local plotBlock = purchases:FindFirstChild("PlotBlock")
-    if not plotBlock then
-        statusLabel.Text = "PlotBlock not found"
-        return
-    end
-    
-    local hitbox = plotBlock:FindFirstChild("Hitbox")
-    if not hitbox then
-        statusLabel.Text = "Hitbox not found"
-        return
-    end
-    
-    if hitbox:FindFirstChild("TouchInterest") then
-        statusLabel.Text = "Found door hitbox - activating"
-        hitbox:Touch(localPlayer.Character.HumanoidRootPart)
-        statusLabel.Text = "Door touched successfully"
-    else
-        statusLabel.Text = "TouchInterest not found in hitbox"
-    end
-end
-
--- Funktion: Geld sammeln
-local function collectMoney()
-    if not playerBase or not collectMoneyEnabled or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local purchases = playerBase:FindFirstChild("Purchases")
-    if purchases then
-        for _, purchase in pairs(purchases:GetChildren()) do
-            if purchase:IsA("Model") then
-                local hitbox = purchase:FindFirstChild("Hitbox")
-                if hitbox and hitbox:FindFirstChild("TouchInterest") then
-                    hitbox:Touch(localPlayer.Character.HumanoidRootPart)
-                end
-            end
-        end
-    end
-end
-
--- Funktion: Überprüfe ob Spieler in der Base ist
-local function checkIfAtBase()
-    if not playerBase or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return false end
-    local spawn = playerBase:FindFirstChild("Spawn")
-    if not spawn then return false end
-    local distance = (localPlayer.Character.HumanoidRootPart.Position - spawn.Position).Magnitude
-    return distance < 50
-end
-
--- Event Handlers
 lockDoorCheck.MouseButton1Click:Connect(function()
     lockDoorEnabled = not lockDoorEnabled
     lockDoorCheck.Text = (lockDoorEnabled and "☑" or "☐") .. " Lock Door"
+    print("Lock Door:", lockDoorEnabled)
 end)
 
 collectMoneyCheck.MouseButton1Click:Connect(function()
     collectMoneyEnabled = not collectMoneyEnabled
     collectMoneyCheck.Text = (collectMoneyEnabled and "☑" or "☐") .. " Collect Money"
+    print("Collect Money:", collectMoneyEnabled)
 end)
 
 buyBestCheck.MouseButton1Click:Connect(function()
@@ -487,6 +546,7 @@ buyBestCheck.MouseButton1Click:Connect(function()
         buyCustomCheck.Text = "☐ Buy Custom"
         buyAllCheck.Text = "☐ Buy All"
     end
+    print("Buy Best:", buyBestEnabled)
 end)
 
 buyCustomCheck.MouseButton1Click:Connect(function()
@@ -498,6 +558,7 @@ buyCustomCheck.MouseButton1Click:Connect(function()
         buyBestCheck.Text = "☐ Buy Best"
         buyAllCheck.Text = "☐ Buy All"
     end
+    print("Buy Custom:", buyCustomEnabled)
 end)
 
 buyAllCheck.MouseButton1Click:Connect(function()
@@ -509,58 +570,78 @@ buyAllCheck.MouseButton1Click:Connect(function()
         buyBestCheck.Text = "☐ Buy Best"
         buyCustomCheck.Text = "☐ Buy Custom"
     end
+    print("Buy All:", buyAllEnabled)
 end)
 
--- Hauptschleife
+-- Character respawn handler
+localPlayer.CharacterAdded:Connect(function(newCharacter)
+    print("Character respawned")
+    character = newCharacter
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    playerBase = nil
+    statusLabel.Text = "Character respawned - finding base..."
+end)
+
+-- === MAIN LOOP ===
 spawn(function()
     while true do
-        wait(2)
+        wait(3)
         
+        -- Update money
         playerMoney = getPlayerMoney()
         moneyLabel.Text = "Money: $" .. tostring(playerMoney)
         
+        -- Find base
         if not playerBase then
             playerBase = findPlayerBase()
             if playerBase then
-                statusLabel.Text = "Base found: " .. string.sub(playerBase.Name, 1, 8) .. "..."
+                statusLabel.Text = "Base found!"
+                print("Base found:", playerBase.Name)
+            else
+                statusLabel.Text = "Searching for base..."
             end
         end
         
-        isAtBase = checkIfAtBase()
-        
-        if lockDoorEnabled and playerBase and not isLaserActive(playerBase) and not isAtBase then
-            tweenToBase()
-        end
-        
-        if collectMoneyEnabled and isAtBase then
-            collectMoney()
-        end
-        
-        if buyBestEnabled then
-            local animal, price = findBestAffordableAnimal()
-            if animal and price then
-                statusLabel.Text = "Found best animal: $" .. tostring(price)
-                moveToAnimalAndBuy(animal)
-                wait(5)
+        if playerBase then
+            isAtBase = checkIfAtBase()
+            
+            -- Lock door logic
+            if lockDoorEnabled and not isLaserActive(playerBase) and not isAtBase then
+                tweenToBase()
             end
-        elseif buyCustomEnabled then
-            local minPrice = tonumber(minPriceInput.Text) or 1000
-            local maxPrice = tonumber(maxPriceInput.Text) or 50000
-            local animal, price = findAnimalInPriceRange(minPrice, maxPrice)
-            if animal and price then
-                statusLabel.Text = "Found custom animal: $" .. tostring(price)
-                moveToAnimalAndBuy(animal)
-                wait(5)
+            
+            -- Collect money logic
+            if collectMoneyEnabled and isAtBase then
+                collectMoney()
             end
-        elseif buyAllEnabled then
-            local animal, price = findMostExpensiveAffordableAnimal()
-            if animal and price then
-                statusLabel.Text = "Found expensive animal: $" .. tostring(price)
-                moveToAnimalAndBuy(animal)
-                wait(5)
+            
+            -- Animal buying logic
+            if buyBestEnabled then
+                local animal, price = findBestAffordableAnimal()
+                if animal and price then
+                    statusLabel.Text = "Found best animal: $" .. tostring(price)
+                    moveToAnimalAndBuy(animal)
+                    wait(5)
+                end
+            elseif buyCustomEnabled then
+                local minPrice = tonumber(minPriceInput.Text) or 1000
+                local maxPrice = tonumber(maxPriceInput.Text) or 50000
+                local animal, price = findAnimalInPriceRange(minPrice, maxPrice)
+                if animal and price then
+                    statusLabel.Text = "Found custom animal: $" .. tostring(price)
+                    moveToAnimalAndBuy(animal)
+                    wait(5)
+                end
+            elseif buyAllEnabled then
+                local animal, price = findMostExpensiveAffordableAnimal()
+                if animal and price then
+                    statusLabel.Text = "Found expensive animal: $" .. tostring(price)
+                    moveToAnimalAndBuy(animal)
+                    wait(5)
+                end
             end
         end
     end
 end)
 
-print("Base & Animal Automation loaded successfully!")
+print("=== BASE & ANIMAL AUTOMATION LOADED SUCCESSFULLY ===")
