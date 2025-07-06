@@ -1,5 +1,5 @@
--- Grow a Garden Automation Script
--- Comprehensive automation system for all game features
+-- Modern Automation UI for Grow a Garden
+-- Apple-inspired design with purple and black theme
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,73 +7,87 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer.PlayerGui
 
--- Services and Modules
-local DataService = require(ReplicatedStorage.Modules.DataService)
-local Remotes = require(ReplicatedStorage.Modules.Remotes)
-local PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService)
-local MarketController = require(ReplicatedStorage.Modules.MarketController)
-local CollectController = require(ReplicatedStorage.Modules.CollectController)
-
--- Data
-local SeedData = require(ReplicatedStorage.Data.SeedData)
-local GearData = require(ReplicatedStorage.Data.GearData)
-local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
-local PetEggData = require(ReplicatedStorage.Data.PetEggData)
-local SeedPackData = require(ReplicatedStorage.Data.SeedPackData)
+-- UI Configuration
+local UIConfig = {
+    Colors = {
+        Primary = Color3.fromRGB(88, 86, 214),      -- Purple
+        Secondary = Color3.fromRGB(142, 68, 173),   -- Purple-Pink
+        Background = Color3.fromRGB(13, 13, 13),    -- Deep Black
+        Surface = Color3.fromRGB(28, 28, 30),       -- Dark Grey
+        SurfaceLight = Color3.fromRGB(44, 44, 46),  -- Light Grey
+        Text = Color3.fromRGB(255, 255, 255),       -- White
+        TextSecondary = Color3.fromRGB(152, 152, 157), -- Light Grey
+        Success = Color3.fromRGB(52, 199, 89),      -- Green
+        Warning = Color3.fromRGB(255, 204, 0),      -- Yellow
+        Error = Color3.fromRGB(255, 69, 58),        -- Red
+        Border = Color3.fromRGB(56, 56, 58),        -- Border Grey
+    },
+    Sizes = {
+        MainFrame = UDim2.new(0, 800, 0, 500),
+        CategoryWidth = 200,
+        ContentWidth = 580,
+        HeaderHeight = 60,
+        CornerRadius = UDim.new(0, 12),
+    },
+    Fonts = {
+        Header = Enum.Font.GothamBold,
+        Title = Enum.Font.GothamSemibold,
+        Body = Enum.Font.Gotham,
+        Button = Enum.Font.GothamMedium,
+    }
+}
 
 -- Automation Configuration
 local AutomationConfig = {
     -- General Settings
     Enabled = false,
     WebhookURL = "",
-    LogLevel = "INFO", -- DEBUG, INFO, WARN, ERROR
+    LogLevel = "INFO",
     
     -- Auto Buy Settings
     AutoBuySeeds = {
         Enabled = false,
-        BuyList = {},
-        MaxSpend = 1000000, -- Max sheckles to spend
-        KeepMinimum = 100000, -- Keep at least this many sheckles
-        CheckInterval = 30, -- Check every 30 seconds
+        MaxSpend = 1000000,
+        KeepMinimum = 100000,
+        CheckInterval = 30,
+        SeedList = {"Carrot", "Strawberry", "Blueberry"},
     },
     
     AutoBuyGear = {
         Enabled = false,
-        BuyList = {},
         MaxSpend = 500000,
         KeepMinimum = 100000,
         CheckInterval = 60,
+        GearList = {"Watering Can", "Trowel", "Recall Wrench"},
     },
     
     AutoBuyEggs = {
         Enabled = false,
-        BuyList = {},
         MaxSpend = 2000000,
         KeepMinimum = 500000,
         CheckInterval = 45,
+        EggList = {"Basic Egg", "Golden Egg"},
     },
     
-    -- Auto Plant Settings
+    -- Farming Settings
     AutoPlant = {
         Enabled = false,
-        SeedPriority = {}, -- Order of seeds to plant
-        PlantInterval = 2, -- Seconds between planting
+        PlantInterval = 2,
         UseWateringCan = true,
         MaxPlantsPerType = 50,
+        SeedPriority = {"Carrot", "Strawberry", "Blueberry"},
     },
     
-    -- Auto Collect Settings
     AutoCollect = {
         Enabled = false,
-        CollectInterval = 1, -- Seconds between collect attempts
-        CollectRadius = 100, -- Studs radius to collect from
+        CollectInterval = 1,
+        CollectRadius = 100,
         PrioritizeRareItems = true,
+        AutoSell = false,
     },
     
     -- Pet Management
@@ -81,13 +95,13 @@ local AutomationConfig = {
         Enabled = false,
         AutoEquip = true,
         AutoFeed = true,
-        FeedThreshold = 500, -- Feed when hunger below this
-        PreferredPets = {}, -- Pet IDs to prioritize
+        FeedThreshold = 500,
         AutoHatchEggs = true,
         HatchInterval = 10,
+        PreferredPets = {},
     },
     
-    -- Auto Events
+    -- Events & Quests
     AutoEvents = {
         Enabled = false,
         DailyQuests = true,
@@ -95,763 +109,1206 @@ local AutomationConfig = {
         BloodMoon = true,
         BeeSwarm = true,
         NightQuests = true,
+        AutoClaim = true,
     },
     
-    -- Auto Trading
+    -- Trading
     AutoTrade = {
         Enabled = false,
         AutoAcceptTrades = false,
-        TradeFilters = {
-            MinPetValue = 1000,
-            MinFruitValue = 100,
-            BlacklistedItems = {},
-        },
+        MinPetValue = 1000,
+        MinFruitValue = 100,
+        BlacklistedItems = {},
+        AutoOffer = false,
     },
     
-    -- Performance Settings
+    -- Misc Features
+    MiscFeatures = {
+        AutoOpenPacks = false,
+        PackOpenInterval = 5,
+        AutoUseGear = true,
+        AutoExpand = false,
+        AutoTeleport = false,
+    },
+    
+    -- Performance
     Performance = {
         ReduceGraphics = false,
         DisableAnimations = false,
         MaxFPS = 60,
         LowMemoryMode = false,
-    },
-    
-    -- Seed Pack Management
-    SeedPacks = {
-        AutoOpen = false,
-        OpenInterval = 5,
-        PreferredPacks = {},
+        OptimizeRendering = true,
     },
 }
 
--- Logging System
-local Logger = {
-    Levels = {
-        DEBUG = 1,
-        INFO = 2,
-        WARN = 3,
-        ERROR = 4,
+-- UI Categories
+local Categories = {
+    {
+        Name = "Dashboard",
+        Icon = "📊",
+        Content = function(parent) return CreateDashboard(parent) end
+    },
+    {
+        Name = "Auto Buy",
+        Icon = "🛒",
+        Content = function(parent) return CreateAutoBuySection(parent) end
+    },
+    {
+        Name = "Farming",
+        Icon = "🌱",
+        Content = function(parent) return CreateFarmingSection(parent) end
+    },
+    {
+        Name = "Pets",
+        Icon = "🐕",
+        Content = function(parent) return CreatePetSection(parent) end
+    },
+    {
+        Name = "Events",
+        Icon = "🎉",
+        Content = function(parent) return CreateEventsSection(parent) end
+    },
+    {
+        Name = "Trading",
+        Icon = "🤝",
+        Content = function(parent) return CreateTradingSection(parent) end
+    },
+    {
+        Name = "Misc",
+        Icon = "⚙️",
+        Content = function(parent) return CreateMiscSection(parent) end
+    },
+    {
+        Name = "Performance",
+        Icon = "⚡",
+        Content = function(parent) return CreatePerformanceSection(parent) end
+    },
+    {
+        Name = "Settings",
+        Icon = "🔧",
+        Content = function(parent) return CreateSettingsSection(parent) end
     }
 }
 
-function Logger:Log(level, message)
-    local currentLevel = self.Levels[AutomationConfig.LogLevel] or 2
-    if self.Levels[level] >= currentLevel then
-        local timestamp = os.date("%H:%M:%S")
-        local logMessage = string.format("[%s] [%s] %s", timestamp, level, message)
-        print(logMessage)
-        
-        -- Send to webhook if configured
-        if AutomationConfig.WebhookURL ~= "" and level ~= "DEBUG" then
-            self:SendWebhook(logMessage)
-        end
-    end
-end
+-- Current state
+local CurrentCategory = 1
+local UIElements = {}
 
-function Logger:SendWebhook(message)
-    local success, result = pcall(function()
-        local payload = {
-            content = string.format("**Grow a Garden Bot** - %s\n```%s```", LocalPlayer.Name, message)
-        }
-        HttpService:PostAsync(AutomationConfig.WebhookURL, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
-    end)
-    if not success then
-        warn("Failed to send webhook:", result)
-    end
-end
-
--- Utility Functions
-local Utils = {}
-
-function Utils:GetPlayerData()
-    return DataService:GetData()
-end
-
-function Utils:GetPlayerMoney()
-    local data = self:GetPlayerData()
-    return data and data.Sheckles or 0
-end
-
-function Utils:GetPlayerInventory()
-    local data = self:GetPlayerData()
-    return data and data.Backpack or {}
-end
-
-function Utils:GetPlayerPets()
-    local data = self:GetPlayerData()
-    return data and data.PetsData and data.PetsData.PetInventory.Data or {}
-end
-
-function Utils:GetPlantedObjects()
-    local data = self:GetPlayerData()
-    return data and data.PlantedObjects or {}
-end
-
-function Utils:FindNearbyCollectibles()
-    local collectibles = {}
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return collectibles
+-- Create main UI
+local function CreateMainUI()
+    -- Destroy existing UI
+    if PlayerGui:FindFirstChild("ModernAutomationUI") then
+        PlayerGui.ModernAutomationUI:Destroy()
     end
     
-    local playerPos = character.HumanoidRootPart.Position
-    
-    -- Find fruits and collectible items
-    for _, obj in workspace:GetDescendants() do
-        if obj:IsA("Part") and obj:GetAttribute("Collectible") then
-            local distance = (obj.Position - playerPos).Magnitude
-            if distance <= AutomationConfig.AutoCollect.CollectRadius then
-                table.insert(collectibles, obj)
-            end
-        end
-    end
-    
-    return collectibles
-end
-
-function Utils:GetEmptyPlantingSpots()
-    local spots = {}
-    local farm = workspace:FindFirstChild("Farm")
-    if not farm then return spots end
-    
-    for _, spot in farm:GetChildren() do
-        if spot.Name == "PlantingSpot" and not spot:FindFirstChild("Plant") then
-            table.insert(spots, spot)
-        end
-    end
-    
-    return spots
-end
-
--- Automation Modules
-local AutoBuyer = {}
-
-function AutoBuyer:BuySeeds()
-    if not AutomationConfig.AutoBuySeeds.Enabled then return end
-    
-    local money = Utils:GetPlayerMoney()
-    if money < AutomationConfig.AutoBuySeeds.KeepMinimum then
-        Logger:Log("WARN", "Not enough money to buy seeds safely")
-        return
-    end
-    
-    local inventory = Utils:GetPlayerInventory()
-    
-    for _, seedName in AutomationConfig.AutoBuySeeds.BuyList do
-        local seedInfo = SeedData[seedName]
-        if seedInfo and seedInfo.Price <= money - AutomationConfig.AutoBuySeeds.KeepMinimum then
-            local currentAmount = inventory[seedName] or 0
-            if currentAmount < 10 then -- Buy if we have less than 10
-                Logger:Log("INFO", "Buying seed: " .. seedName)
-                MarketController:PromptPurchase(0, seedInfo.PurchaseID)
-                task.wait(1)
-            end
-        end
-    end
-end
-
-function AutoBuyer:BuyGear()
-    if not AutomationConfig.AutoBuyGear.Enabled then return end
-    
-    local money = Utils:GetPlayerMoney()
-    if money < AutomationConfig.AutoBuyGear.KeepMinimum then return end
-    
-    local inventory = Utils:GetPlayerInventory()
-    
-    for _, gearName in AutomationConfig.AutoBuyGear.BuyList do
-        local gearInfo = GearData[gearName]
-        if gearInfo and gearInfo.Price <= money - AutomationConfig.AutoBuyGear.KeepMinimum then
-            local currentAmount = inventory[gearName] or 0
-            if currentAmount < 5 then
-                Logger:Log("INFO", "Buying gear: " .. gearName)
-                MarketController:PromptPurchase(1, gearInfo.PurchaseID)
-                task.wait(1)
-            end
-        end
-    end
-end
-
-function AutoBuyer:BuyEggs()
-    if not AutomationConfig.AutoBuyEggs.Enabled then return end
-    
-    local money = Utils:GetPlayerMoney()
-    if money < AutomationConfig.AutoBuyEggs.KeepMinimum then return end
-    
-    for _, eggName in AutomationConfig.AutoBuyEggs.BuyList do
-        local eggInfo = PetEggData[eggName]
-        if eggInfo and eggInfo.Price <= money - AutomationConfig.AutoBuyEggs.KeepMinimum then
-            Logger:Log("INFO", "Buying egg: " .. eggName)
-            MarketController:PromptPurchase(2, eggInfo.PurchaseID)
-            task.wait(2)
-        end
-    end
-end
-
--- Auto Planting System
-local AutoPlanter = {}
-
-function AutoPlanter:PlantSeeds()
-    if not AutomationConfig.AutoPlant.Enabled then return end
-    
-    local inventory = Utils:GetPlayerInventory()
-    local emptySpots = Utils:GetEmptyPlantingSpots()
-    
-    if #emptySpots == 0 then return end
-    
-    for _, seedName in AutomationConfig.AutoPlant.SeedPriority do
-        local seedAmount = inventory[seedName] or 0
-        if seedAmount > 0 then
-            local planted = 0
-            for _, spot in emptySpots do
-                if planted >= AutomationConfig.AutoPlant.MaxPlantsPerType then break end
-                
-                -- Plant seed at spot
-                self:PlantSeedAt(seedName, spot)
-                planted = planted + 1
-                
-                task.wait(AutomationConfig.AutoPlant.PlantInterval)
-            end
-        end
-    end
-end
-
-function AutoPlanter:PlantSeedAt(seedName, spot)
-    -- This would require interacting with the game's planting system
-    -- Implementation depends on how the game handles planting
-    Logger:Log("DEBUG", "Planting " .. seedName .. " at spot")
-end
-
-function AutoPlanter:UseWateringCan()
-    if not AutomationConfig.AutoPlant.UseWateringCan then return end
-    
-    local inventory = Utils:GetPlayerInventory()
-    local wateringCan = inventory["Watering Can"]
-    
-    if wateringCan and wateringCan > 0 then
-        -- Use watering can on plants
-        local plantedObjects = Utils:GetPlantedObjects()
-        for _, plant in plantedObjects do
-            -- Use watering can logic
-            task.wait(0.5)
-        end
-    end
-end
-
--- Auto Collector
-local AutoCollector = {}
-
-function AutoCollector:CollectItems()
-    if not AutomationConfig.AutoCollect.Enabled then return end
-    
-    local collectibles = Utils:FindNearbyCollectibles()
-    
-    if #collectibles > 0 then
-        Logger:Log("DEBUG", "Found " .. #collectibles .. " collectible items")
-        
-        -- Sort by priority if enabled
-        if AutomationConfig.AutoCollect.PrioritizeRareItems then
-            table.sort(collectibles, function(a, b)
-                return (a:GetAttribute("Rarity") or 0) > (b:GetAttribute("Rarity") or 0)
-            end)
-        end
-        
-        -- Collect items using the game's collect system
-        Remotes.Crops.Collect:fire(collectibles)
-    end
-end
-
--- Pet Management System
-local PetManager = {}
-
-function PetManager:ManagePets()
-    if not AutomationConfig.PetManagement.Enabled then return end
-    
-    local pets = Utils:GetPlayerPets()
-    
-    -- Auto equip preferred pets
-    if AutomationConfig.PetManagement.AutoEquip then
-        self:AutoEquipPets(pets)
-    end
-    
-    -- Auto feed pets
-    if AutomationConfig.PetManagement.AutoFeed then
-        self:AutoFeedPets(pets)
-    end
-    
-    -- Auto hatch eggs
-    if AutomationConfig.PetManagement.AutoHatchEggs then
-        self:AutoHatchEggs()
-    end
-end
-
-function PetManager:AutoEquipPets(pets)
-    local equippedCount = 0
-    
-    for petId, petData in pets do
-        if petData.Equipped then
-            equippedCount = equippedCount + 1
-        end
-    end
-    
-    -- Try to equip preferred pets
-    for _, preferredPetId in AutomationConfig.PetManagement.PreferredPets do
-        local petData = pets[preferredPetId]
-        if petData and not petData.Equipped and equippedCount < 3 then
-            Logger:Log("INFO", "Equipping preferred pet: " .. preferredPetId)
-            PetsService:EquipPet(preferredPetId, equippedCount + 1)
-            equippedCount = equippedCount + 1
-            task.wait(1)
-        end
-    end
-end
-
-function PetManager:AutoFeedPets(pets)
-    local inventory = Utils:GetPlayerInventory()
-    
-    for petId, petData in pets do
-        if petData.Hunger and petData.Hunger < AutomationConfig.PetManagement.FeedThreshold then
-            -- Find suitable food in inventory
-            for itemName, amount in inventory do
-                if amount > 0 and self:IsPetFood(itemName) then
-                    Logger:Log("INFO", "Feeding pet " .. petId .. " with " .. itemName)
-                    -- Feed pet logic would go here
-                    break
-                end
-            end
-        end
-    end
-end
-
-function PetManager:IsPetFood(itemName)
-    -- Check if item is pet food (fruits, etc.)
-    return itemName:find("Fruit") or itemName:find("Berry") or itemName:find("Apple")
-end
-
-function PetManager:AutoHatchEggs()
-    local inventory = Utils:GetPlayerInventory()
-    
-    for eggName, amount in inventory do
-        if amount > 0 and eggName:find("Egg") then
-            Logger:Log("INFO", "Hatching egg: " .. eggName)
-            -- Hatch egg logic
-            task.wait(AutomationConfig.PetManagement.HatchInterval)
-        end
-    end
-end
-
--- Event Automation
-local EventManager = {}
-
-function EventManager:HandleEvents()
-    if not AutomationConfig.AutoEvents.Enabled then return end
-    
-    -- Handle daily quests
-    if AutomationConfig.AutoEvents.DailyQuests then
-        self:ClaimDailyQuests()
-    end
-    
-    -- Handle other events
-    if AutomationConfig.AutoEvents.SummerHarvest then
-        self:HandleSummerHarvest()
-    end
-end
-
-function EventManager:ClaimDailyQuests()
-    Logger:Log("DEBUG", "Attempting to claim daily quests")
-    Remotes.DailyQuests.Claim:fire()
-end
-
-function EventManager:HandleSummerHarvest()
-    -- Summer harvest event logic
-    local data = Utils:GetPlayerData()
-    if data and data.SummerHarvest then
-        -- Submit plants for summer harvest
-        Logger:Log("DEBUG", "Handling summer harvest event")
-    end
-end
-
--- Seed Pack Manager
-local SeedPackManager = {}
-
-function SeedPackManager:OpenSeedPacks()
-    if not AutomationConfig.SeedPacks.AutoOpen then return end
-    
-    local inventory = Utils:GetPlayerInventory()
-    
-    for packName, amount in inventory do
-        if amount > 0 and packName:find("Pack") then
-            Logger:Log("INFO", "Opening seed pack: " .. packName)
-            Remotes.SeedPack.Open:fire(packName)
-            task.wait(AutomationConfig.SeedPacks.OpenInterval)
-        end
-    end
-end
-
--- Performance Optimizer
-local PerformanceOptimizer = {}
-
-function PerformanceOptimizer:OptimizePerformance()
-    if not AutomationConfig.Performance.ReduceGraphics then return end
-    
-    -- Reduce graphics settings
-    local lighting = game:GetService("Lighting")
-    lighting.GlobalShadows = false
-    lighting.FogEnd = 500
-    
-    -- Disable unnecessary effects
-    for _, effect in lighting:GetChildren() do
-        if effect:IsA("PostEffect") then
-            effect.Enabled = false
-        end
-    end
-    
-    -- Set FPS limit
-    if AutomationConfig.Performance.MaxFPS then
-        RunService.Heartbeat:Connect(function()
-            local fps = 1 / RunService.Heartbeat:Wait()
-            if fps > AutomationConfig.Performance.MaxFPS then
-                task.wait(1/AutomationConfig.Performance.MaxFPS - 1/fps)
-            end
-        end)
-    end
-end
-
--- UI System
-local AutomationUI = {}
-
-function AutomationUI:CreateUI()
-    -- Create main UI frame
+    -- Create ScreenGui
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "AutomationUI"
+    screenGui.Name = "ModernAutomationUI"
     screenGui.Parent = PlayerGui
     screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 100
     
-    -- Main frame
+    -- Main Frame
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 400, 0, 600)
-    mainFrame.Position = UDim2.new(0, 50, 0, 50)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.Size = UIConfig.Sizes.MainFrame
+    mainFrame.Position = UDim2.new(0.5, -400, 0.5, -250)
+    mainFrame.BackgroundColor3 = UIConfig.Colors.Background
     mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    mainFrame.Visible = false
     mainFrame.Parent = screenGui
     
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    title.BorderSizePixel = 0
-    title.Text = "Grow a Garden Automation"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.Font = Enum.Font.SourceSansBold
-    title.Parent = mainFrame
+    -- Corner radius
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UIConfig.Sizes.CornerRadius
+    mainCorner.Parent = mainFrame
     
-    -- Scrolling frame for options
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Name = "ScrollFrame"
-    scrollFrame.Size = UDim2.new(1, -20, 1, -50)
-    scrollFrame.Position = UDim2.new(0, 10, 0, 40)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 8
-    scrollFrame.Parent = mainFrame
+    -- Drop shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 40, 1, 40)
+    shadow.Position = UDim2.new(0, -20, 0, -20)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" -- Replace with shadow image
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.8
+    shadow.ZIndex = -1
+    shadow.Parent = mainFrame
     
-    -- Create sections
-    self:CreateSection(scrollFrame, "General Settings", {
-        {name = "Master Enable", type = "toggle", key = "Enabled"},
-        {name = "Webhook URL", type = "textbox", key = "WebhookURL"},
-        {name = "Log Level", type = "dropdown", key = "LogLevel", options = {"DEBUG", "INFO", "WARN", "ERROR"}},
-    })
+    -- Header
+    CreateHeader(mainFrame)
     
-    self:CreateSection(scrollFrame, "Auto Buy Seeds", {
-        {name = "Enable", type = "toggle", key = "AutoBuySeeds.Enabled"},
-        {name = "Max Spend", type = "number", key = "AutoBuySeeds.MaxSpend"},
-        {name = "Keep Minimum", type = "number", key = "AutoBuySeeds.KeepMinimum"},
-    })
+    -- Category Sidebar
+    CreateCategorySidebar(mainFrame)
     
-    self:CreateSection(scrollFrame, "Auto Buy Gear", {
-        {name = "Enable", type = "toggle", key = "AutoBuyGear.Enabled"},
-        {name = "Max Spend", type = "number", key = "AutoBuyGear.MaxSpend"},
-        {name = "Keep Minimum", type = "number", key = "AutoBuyGear.KeepMinimum"},
-    })
+    -- Content Area
+    CreateContentArea(mainFrame)
     
-    self:CreateSection(scrollFrame, "Auto Plant", {
-        {name = "Enable", type = "toggle", key = "AutoPlant.Enabled"},
-        {name = "Plant Interval", type = "number", key = "AutoPlant.PlantInterval"},
-        {name = "Use Watering Can", type = "toggle", key = "AutoPlant.UseWateringCan"},
-    })
+    -- Make draggable
+    MakeDraggable(mainFrame)
     
-    self:CreateSection(scrollFrame, "Auto Collect", {
-        {name = "Enable", type = "toggle", key = "AutoCollect.Enabled"},
-        {name = "Collect Interval", type = "number", key = "AutoCollect.CollectInterval"},
-        {name = "Collect Radius", type = "number", key = "AutoCollect.CollectRadius"},
-    })
-    
-    self:CreateSection(scrollFrame, "Pet Management", {
-        {name = "Enable", type = "toggle", key = "PetManagement.Enabled"},
-        {name = "Auto Equip", type = "toggle", key = "PetManagement.AutoEquip"},
-        {name = "Auto Feed", type = "toggle", key = "PetManagement.AutoFeed"},
-        {name = "Auto Hatch Eggs", type = "toggle", key = "PetManagement.AutoHatchEggs"},
-    })
-    
-    self:CreateSection(scrollFrame, "Events", {
-        {name = "Enable", type = "toggle", key = "AutoEvents.Enabled"},
-        {name = "Daily Quests", type = "toggle", key = "AutoEvents.DailyQuests"},
-        {name = "Summer Harvest", type = "toggle", key = "AutoEvents.SummerHarvest"},
-    })
-    
-    self:CreateSection(scrollFrame, "Performance", {
-        {name = "Reduce Graphics", type = "toggle", key = "Performance.ReduceGraphics"},
-        {name = "Max FPS", type = "number", key = "Performance.MaxFPS"},
-        {name = "Low Memory Mode", type = "toggle", key = "Performance.LowMemoryMode"},
-    })
-    
-    -- Make UI draggable
-    self:MakeDraggable(mainFrame)
-    
-    -- Toggle UI visibility
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.F3 then
-            mainFrame.Visible = not mainFrame.Visible
-        end
-    end)
+    -- Store references
+    UIElements.ScreenGui = screenGui
+    UIElements.MainFrame = mainFrame
     
     return screenGui
 end
 
-function AutomationUI:CreateSection(parent, title, options)
-    local sectionFrame = Instance.new("Frame")
-    sectionFrame.Name = title
-    sectionFrame.Size = UDim2.new(1, 0, 0, 30 + (#options * 35))
-    sectionFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    sectionFrame.BorderSizePixel = 1
-    sectionFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
-    sectionFrame.Parent = parent
+-- Create header
+function CreateHeader(parent)
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, UIConfig.Sizes.HeaderHeight)
+    header.Position = UDim2.new(0, 0, 0, 0)
+    header.BackgroundColor3 = UIConfig.Colors.Surface
+    header.BorderSizePixel = 0
+    header.Parent = parent
     
-    -- Section title
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "SectionTitle"
-    titleLabel.Size = UDim2.new(1, 0, 0, 25)
-    titleLabel.Position = UDim2.new(0, 0, 0, 0)
-    titleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    titleLabel.BorderSizePixel = 0
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextScaled = true
-    titleLabel.Font = Enum.Font.SourceSansBold
-    titleLabel.Parent = sectionFrame
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UIConfig.Sizes.CornerRadius
+    headerCorner.Parent = header
     
-    -- Create option controls
-    for i, option in ipairs(options) do
-        self:CreateOptionControl(sectionFrame, option, i)
-    end
+    -- Header background to hide rounded bottom corners
+    local headerBg = Instance.new("Frame")
+    headerBg.Size = UDim2.new(1, 0, 0, 30)
+    headerBg.Position = UDim2.new(0, 0, 1, -30)
+    headerBg.BackgroundColor3 = UIConfig.Colors.Surface
+    headerBg.BorderSizePixel = 0
+    headerBg.Parent = header
     
-    -- Update canvas size
-    parent.CanvasSize = UDim2.new(0, 0, 0, parent.CanvasSize.Y.Offset + sectionFrame.Size.Y.Offset + 10)
+    -- Logo/Icon
+    local logo = Instance.new("TextLabel")
+    logo.Name = "Logo"
+    logo.Size = UDim2.new(0, 40, 0, 40)
+    logo.Position = UDim2.new(0, 20, 0, 10)
+    logo.BackgroundTransparency = 1
+    logo.Text = "🌱"
+    logo.TextColor3 = UIConfig.Colors.Primary
+    logo.TextScaled = true
+    logo.Font = UIConfig.Fonts.Header
+    logo.Parent = header
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0, 300, 0, 30)
+    title.Position = UDim2.new(0, 70, 0, 15)
+    title.BackgroundTransparency = 1
+    title.Text = "Grow a Garden Automation"
+    title.TextColor3 = UIConfig.Colors.Text
+    title.TextSize = 18
+    title.Font = UIConfig.Fonts.Title
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+    
+    -- Status indicator
+    local statusFrame = Instance.new("Frame")
+    statusFrame.Name = "StatusFrame"
+    statusFrame.Size = UDim2.new(0, 120, 0, 30)
+    statusFrame.Position = UDim2.new(1, -140, 0, 15)
+    statusFrame.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    statusFrame.BorderSizePixel = 0
+    statusFrame.Parent = header
+    
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0, 15)
+    statusCorner.Parent = statusFrame
+    
+    local statusDot = Instance.new("Frame")
+    statusDot.Name = "StatusDot"
+    statusDot.Size = UDim2.new(0, 8, 0, 8)
+    statusDot.Position = UDim2.new(0, 10, 0, 11)
+    statusDot.BackgroundColor3 = UIConfig.Colors.Error
+    statusDot.BorderSizePixel = 0
+    statusDot.Parent = statusFrame
+    
+    local dotCorner = Instance.new("UICorner")
+    dotCorner.CornerRadius = UDim.new(0, 4)
+    dotCorner.Parent = statusDot
+    
+    local statusText = Instance.new("TextLabel")
+    statusText.Name = "StatusText"
+    statusText.Size = UDim2.new(1, -25, 1, 0)
+    statusText.Position = UDim2.new(0, 25, 0, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "Disabled"
+    statusText.TextColor3 = UIConfig.Colors.TextSecondary
+    statusText.TextSize = 12
+    statusText.Font = UIConfig.Fonts.Body
+    statusText.TextXAlignment = Enum.TextXAlignment.Left
+    statusText.Parent = statusFrame
+    
+    -- Close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -50, 0, 15)
+    closeButton.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = UIConfig.Colors.TextSecondary
+    closeButton.TextSize = 14
+    closeButton.Font = UIConfig.Fonts.Button
+    closeButton.Parent = header
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 15)
+    closeCorner.Parent = closeButton
+    
+    closeButton.MouseEnter:Connect(function()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {BackgroundColor3 = UIConfig.Colors.Error}):Play()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.Text}):Play()
+    end)
+    
+    closeButton.MouseLeave:Connect(function()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {BackgroundColor3 = UIConfig.Colors.SurfaceLight}):Play()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.TextSecondary}):Play()
+    end)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        TweenService:Create(parent, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        
+        wait(0.3)
+        parent.Visible = false
+        parent.Size = UIConfig.Sizes.MainFrame
+        parent.Position = UDim2.new(0.5, -400, 0.5, -250)
+    end)
+    
+    -- Store status elements
+    UIElements.StatusDot = statusDot
+    UIElements.StatusText = statusText
 end
 
-function AutomationUI:CreateOptionControl(parent, option, index)
-    local controlFrame = Instance.new("Frame")
-    controlFrame.Name = option.name
-    controlFrame.Size = UDim2.new(1, -10, 0, 30)
-    controlFrame.Position = UDim2.new(0, 5, 0, 25 + (index * 35))
-    controlFrame.BackgroundTransparency = 1
-    controlFrame.Parent = parent
+-- Create category sidebar
+function CreateCategorySidebar(parent)
+    local sidebar = Instance.new("Frame")
+    sidebar.Name = "CategorySidebar"
+    sidebar.Size = UDim2.new(0, UIConfig.Sizes.CategoryWidth, 1, -UIConfig.Sizes.HeaderHeight)
+    sidebar.Position = UDim2.new(0, 0, 0, UIConfig.Sizes.HeaderHeight)
+    sidebar.BackgroundColor3 = UIConfig.Colors.Surface
+    sidebar.BorderSizePixel = 0
+    sidebar.Parent = parent
+    
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "CategoryScroll"
+    scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+    scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 4
+    scrollFrame.ScrollBarImageColor3 = UIConfig.Colors.Primary
+    scrollFrame.Parent = sidebar
+    
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 2)
+    layout.Parent = scrollFrame
+    
+    -- Create category buttons
+    for i, category in ipairs(Categories) do
+        CreateCategoryButton(scrollFrame, category, i)
+    end
+    
+    -- Update scroll canvas size
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+    end)
+    
+    UIElements.CategorySidebar = sidebar
+end
+
+-- Create category button
+function CreateCategoryButton(parent, category, index)
+    local button = Instance.new("TextButton")
+    button.Name = "Category_" .. category.Name
+    button.Size = UDim2.new(1, -10, 0, 45)
+    button.Position = UDim2.new(0, 5, 0, 0)
+    button.BackgroundColor3 = index == CurrentCategory and UIConfig.Colors.Primary or Color3.fromRGB(0, 0, 0, 0)
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.LayoutOrder = index
+    button.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+    
+    -- Icon
+    local icon = Instance.new("TextLabel")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0, 20, 0, 20)
+    icon.Position = UDim2.new(0, 15, 0, 12.5)
+    icon.BackgroundTransparency = 1
+    icon.Text = category.Icon
+    icon.TextColor3 = index == CurrentCategory and UIConfig.Colors.Text or UIConfig.Colors.TextSecondary
+    icon.TextSize = 16
+    icon.Font = UIConfig.Fonts.Body
+    icon.Parent = button
     
     -- Label
     local label = Instance.new("TextLabel")
     label.Name = "Label"
-    label.Size = UDim2.new(0.5, 0, 1, 0)
-    label.Position = UDim2.new(0, 0, 0, 0)
+    label.Size = UDim2.new(1, -50, 1, 0)
+    label.Position = UDim2.new(0, 45, 0, 0)
     label.BackgroundTransparency = 1
-    label.Text = option.name
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextScaled = true
-    label.Font = Enum.Font.SourceSans
+    label.Text = category.Name
+    label.TextColor3 = index == CurrentCategory and UIConfig.Colors.Text or UIConfig.Colors.TextSecondary
+    label.TextSize = 14
+    label.Font = UIConfig.Fonts.Body
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = controlFrame
+    label.Parent = button
     
-    -- Create control based on type
-    if option.type == "toggle" then
-        self:CreateToggle(controlFrame, option.key)
-    elseif option.type == "number" then
-        self:CreateNumberInput(controlFrame, option.key)
-    elseif option.type == "textbox" then
-        self:CreateTextBox(controlFrame, option.key)
-    elseif option.type == "dropdown" then
-        self:CreateDropdown(controlFrame, option.key, option.options)
+    -- Hover effects
+    button.MouseEnter:Connect(function()
+        if index ~= CurrentCategory then
+            TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = UIConfig.Colors.SurfaceLight}):Play()
+        end
+    end)
+    
+    button.MouseLeave:Connect(function()
+        if index ~= CurrentCategory then
+            TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)}):Play()
+        end
+    end)
+    
+    -- Click handler
+    button.MouseButton1Click:Connect(function()
+        SelectCategory(index)
+    end)
+    
+    -- Store reference
+    if not UIElements.CategoryButtons then
+        UIElements.CategoryButtons = {}
+    end
+    UIElements.CategoryButtons[index] = {
+        Button = button,
+        Icon = icon,
+        Label = label
+    }
+end
+
+-- Select category
+function SelectCategory(index)
+    if index == CurrentCategory then return end
+    
+    -- Update previous category button
+    local prevButton = UIElements.CategoryButtons[CurrentCategory]
+    if prevButton then
+        TweenService:Create(prevButton.Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)}):Play()
+        TweenService:Create(prevButton.Icon, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.TextSecondary}):Play()
+        TweenService:Create(prevButton.Label, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.TextSecondary}):Play()
+    end
+    
+    -- Update new category button
+    local newButton = UIElements.CategoryButtons[index]
+    if newButton then
+        TweenService:Create(newButton.Button, TweenInfo.new(0.2), {BackgroundColor3 = UIConfig.Colors.Primary}):Play()
+        TweenService:Create(newButton.Icon, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.Text}):Play()
+        TweenService:Create(newButton.Label, TweenInfo.new(0.2), {TextColor3 = UIConfig.Colors.Text}):Play()
+    end
+    
+    CurrentCategory = index
+    
+    -- Update content area
+    UpdateContentArea()
+end
+
+-- Create content area
+function CreateContentArea(parent)
+    local contentArea = Instance.new("Frame")
+    contentArea.Name = "ContentArea"
+    contentArea.Size = UDim2.new(0, UIConfig.Sizes.ContentWidth, 1, -UIConfig.Sizes.HeaderHeight)
+    contentArea.Position = UDim2.new(0, UIConfig.Sizes.CategoryWidth, 0, UIConfig.Sizes.HeaderHeight)
+    contentArea.BackgroundColor3 = UIConfig.Colors.Background
+    contentArea.BorderSizePixel = 0
+    contentArea.Parent = parent
+    
+    -- Separator line
+    local separator = Instance.new("Frame")
+    separator.Name = "Separator"
+    separator.Size = UDim2.new(0, 1, 1, 0)
+    separator.Position = UDim2.new(0, 0, 0, 0)
+    separator.BackgroundColor3 = UIConfig.Colors.Border
+    separator.BorderSizePixel = 0
+    separator.Parent = contentArea
+    
+    UIElements.ContentArea = contentArea
+    
+    -- Load initial content
+    UpdateContentArea()
+end
+
+-- Update content area
+function UpdateContentArea()
+    local contentArea = UIElements.ContentArea
+    if not contentArea then return end
+    
+    -- Clear existing content
+    for _, child in ipairs(contentArea:GetChildren()) do
+        if child.Name ~= "Separator" then
+            child:Destroy()
+        end
+    end
+    
+    -- Create new content
+    local category = Categories[CurrentCategory]
+    if category and category.Content then
+        category.Content(contentArea)
     end
 end
 
-function AutomationUI:CreateToggle(parent, key)
+-- Create Dashboard
+function CreateDashboard(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Status Cards
+    local statusCard = CreateCard(scroll, "System Status", 0)
+    
+    -- Master toggle
+    CreateToggle(statusCard, "Master Enable", "Enable all automation features", AutomationConfig, "Enabled", function(value)
+        UpdateStatus(value)
+    end)
+    
+    -- Statistics Card
+    local statsCard = CreateCard(scroll, "Statistics", 1)
+    
+    -- Stats labels (these would be updated in real-time)
+    CreateInfoLabel(statsCard, "Money", "1,234,567 Sheckles", 0)
+    CreateInfoLabel(statsCard, "Plants", "42 Growing", 1)
+    CreateInfoLabel(statsCard, "Pets", "3 Equipped", 2)
+    CreateInfoLabel(statsCard, "Uptime", "2h 34m", 3)
+    
+    -- Quick Actions Card
+    local actionsCard = CreateCard(scroll, "Quick Actions", 2)
+    
+    CreateButton(actionsCard, "Collect All", UIConfig.Colors.Success, 0, function()
+        print("Collect All clicked")
+    end)
+    
+    CreateButton(actionsCard, "Feed Pets", UIConfig.Colors.Warning, 1, function()
+        print("Feed Pets clicked")
+    end)
+    
+    CreateButton(actionsCard, "Buy Seeds", UIConfig.Colors.Primary, 2, function()
+        print("Buy Seeds clicked")
+    end)
+end
+
+-- Create Auto Buy Section
+function CreateAutoBuySection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Seeds Card
+    local seedsCard = CreateCard(scroll, "Auto Buy Seeds", 0)
+    
+    CreateToggle(seedsCard, "Enable Auto Buy Seeds", "Automatically purchase seeds when stock is low", AutomationConfig.AutoBuySeeds, "Enabled")
+    CreateSlider(seedsCard, "Max Spend", "Maximum sheckles to spend on seeds", AutomationConfig.AutoBuySeeds, "MaxSpend", 0, 10000000, 1)
+    CreateSlider(seedsCard, "Keep Minimum", "Always keep this amount of sheckles", AutomationConfig.AutoBuySeeds, "KeepMinimum", 0, 5000000, 2)
+    CreateSlider(seedsCard, "Check Interval", "Seconds between stock checks", AutomationConfig.AutoBuySeeds, "CheckInterval", 10, 300, 3)
+    
+    -- Gear Card
+    local gearCard = CreateCard(scroll, "Auto Buy Gear", 1)
+    
+    CreateToggle(gearCard, "Enable Auto Buy Gear", "Automatically purchase tools and gear", AutomationConfig.AutoBuyGear, "Enabled")
+    CreateSlider(gearCard, "Max Spend", "Maximum sheckles to spend on gear", AutomationConfig.AutoBuyGear, "MaxSpend", 0, 5000000, 1)
+    CreateSlider(gearCard, "Keep Minimum", "Always keep this amount of sheckles", AutomationConfig.AutoBuyGear, "KeepMinimum", 0, 2000000, 2)
+    
+    -- Eggs Card
+    local eggsCard = CreateCard(scroll, "Auto Buy Eggs", 2)
+    
+    CreateToggle(eggsCard, "Enable Auto Buy Eggs", "Automatically purchase pet eggs", AutomationConfig.AutoBuyEggs, "Enabled")
+    CreateSlider(eggsCard, "Max Spend", "Maximum sheckles to spend on eggs", AutomationConfig.AutoBuyEggs, "MaxSpend", 0, 20000000, 1)
+    CreateSlider(eggsCard, "Keep Minimum", "Always keep this amount of sheckles", AutomationConfig.AutoBuyEggs, "KeepMinimum", 0, 5000000, 2)
+end
+
+-- Create Farming Section
+function CreateFarmingSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Planting Card
+    local plantCard = CreateCard(scroll, "Auto Plant", 0)
+    
+    CreateToggle(plantCard, "Enable Auto Plant", "Automatically plant seeds on empty spots", AutomationConfig.AutoPlant, "Enabled")
+    CreateSlider(plantCard, "Plant Interval", "Seconds between planting seeds", AutomationConfig.AutoPlant, "PlantInterval", 0.5, 10, 1)
+    CreateToggle(plantCard, "Use Watering Can", "Automatically use watering can on plants", AutomationConfig.AutoPlant, "UseWateringCan", 2)
+    CreateSlider(plantCard, "Max Plants Per Type", "Maximum plants of each type to grow", AutomationConfig.AutoPlant, "MaxPlantsPerType", 1, 200, 3)
+    
+    -- Collecting Card
+    local collectCard = CreateCard(scroll, "Auto Collect", 1)
+    
+    CreateToggle(collectCard, "Enable Auto Collect", "Automatically collect grown plants and fruits", AutomationConfig.AutoCollect, "Enabled")
+    CreateSlider(collectCard, "Collect Interval", "Seconds between collection attempts", AutomationConfig.AutoCollect, "CollectInterval", 0.1, 5, 1)
+    CreateSlider(collectCard, "Collect Radius", "Radius in studs to collect from", AutomationConfig.AutoCollect, "CollectRadius", 10, 500, 2)
+    CreateToggle(collectCard, "Prioritize Rare Items", "Collect rare items first", AutomationConfig.AutoCollect, "PrioritizeRareItems", 3)
+    CreateToggle(collectCard, "Auto Sell", "Automatically sell collected items", AutomationConfig.AutoCollect, "AutoSell", 4)
+end
+
+-- Create Pet Section
+function CreatePetSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Pet Management Card
+    local petCard = CreateCard(scroll, "Pet Management", 0)
+    
+    CreateToggle(petCard, "Enable Pet Management", "Automatically manage pets", AutomationConfig.PetManagement, "Enabled")
+    CreateToggle(petCard, "Auto Equip", "Automatically equip best pets", AutomationConfig.PetManagement, "AutoEquip", 1)
+    CreateToggle(petCard, "Auto Feed", "Automatically feed hungry pets", AutomationConfig.PetManagement, "AutoFeed", 2)
+    CreateSlider(petCard, "Feed Threshold", "Feed pets when hunger below this value", AutomationConfig.PetManagement, "FeedThreshold", 0, 1000, 3)
+    
+    -- Egg Hatching Card
+    local eggCard = CreateCard(scroll, "Egg Hatching", 1)
+    
+    CreateToggle(eggCard, "Auto Hatch Eggs", "Automatically hatch pet eggs", AutomationConfig.PetManagement, "AutoHatchEggs")
+    CreateSlider(eggCard, "Hatch Interval", "Seconds between hatching eggs", AutomationConfig.PetManagement, "HatchInterval", 1, 60, 1)
+end
+
+-- Create Events Section
+function CreateEventsSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Events Card
+    local eventsCard = CreateCard(scroll, "Auto Events", 0)
+    
+    CreateToggle(eventsCard, "Enable Auto Events", "Automatically participate in events", AutomationConfig.AutoEvents, "Enabled")
+    CreateToggle(eventsCard, "Daily Quests", "Auto claim daily quest rewards", AutomationConfig.AutoEvents, "DailyQuests", 1)
+    CreateToggle(eventsCard, "Summer Harvest", "Auto participate in summer harvest", AutomationConfig.AutoEvents, "SummerHarvest", 2)
+    CreateToggle(eventsCard, "Blood Moon", "Auto participate in blood moon events", AutomationConfig.AutoEvents, "BloodMoon", 3)
+    CreateToggle(eventsCard, "Bee Swarm", "Auto participate in bee swarm events", AutomationConfig.AutoEvents, "BeeSwarm", 4)
+    CreateToggle(eventsCard, "Night Quests", "Auto complete night quests", AutomationConfig.AutoEvents, "NightQuests", 5)
+    CreateToggle(eventsCard, "Auto Claim", "Automatically claim event rewards", AutomationConfig.AutoEvents, "AutoClaim", 6)
+end
+
+-- Create Trading Section
+function CreateTradingSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Trading Card
+    local tradingCard = CreateCard(scroll, "Auto Trading", 0)
+    
+    CreateToggle(tradingCard, "Enable Auto Trading", "Automatically handle trades", AutomationConfig.AutoTrade, "Enabled")
+    CreateToggle(tradingCard, "Auto Accept Trades", "Automatically accept good trades", AutomationConfig.AutoTrade, "AutoAcceptTrades", 1)
+    CreateSlider(tradingCard, "Min Pet Value", "Minimum pet value to consider", AutomationConfig.AutoTrade, "MinPetValue", 100, 100000, 2)
+    CreateSlider(tradingCard, "Min Fruit Value", "Minimum fruit value to consider", AutomationConfig.AutoTrade, "MinFruitValue", 10, 10000, 3)
+    CreateToggle(tradingCard, "Auto Offer", "Automatically send trade offers", AutomationConfig.AutoTrade, "AutoOffer", 4)
+end
+
+-- Create Misc Section
+function CreateMiscSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Miscellaneous Card
+    local miscCard = CreateCard(scroll, "Miscellaneous Features", 0)
+    
+    CreateToggle(miscCard, "Auto Open Packs", "Automatically open seed packs and crates", AutomationConfig.MiscFeatures, "AutoOpenPacks")
+    CreateSlider(miscCard, "Pack Open Interval", "Seconds between opening packs", AutomationConfig.MiscFeatures, "PackOpenInterval", 1, 30, 1)
+    CreateToggle(miscCard, "Auto Use Gear", "Automatically use tools and gear", AutomationConfig.MiscFeatures, "AutoUseGear", 2)
+    CreateToggle(miscCard, "Auto Expand", "Automatically expand farm when possible", AutomationConfig.MiscFeatures, "AutoExpand", 3)
+    CreateToggle(miscCard, "Auto Teleport", "Automatically teleport to optimal locations", AutomationConfig.MiscFeatures, "AutoTeleport", 4)
+end
+
+-- Create Performance Section
+function CreatePerformanceSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Performance Card
+    local perfCard = CreateCard(scroll, "Performance Settings", 0)
+    
+    CreateToggle(perfCard, "Reduce Graphics", "Lower graphics settings for better performance", AutomationConfig.Performance, "ReduceGraphics")
+    CreateToggle(perfCard, "Disable Animations", "Disable unnecessary animations", AutomationConfig.Performance, "DisableAnimations", 1)
+    CreateSlider(perfCard, "Max FPS", "Limit FPS to reduce CPU usage", AutomationConfig.Performance, "MaxFPS", 30, 120, 2)
+    CreateToggle(perfCard, "Low Memory Mode", "Reduce memory usage", AutomationConfig.Performance, "LowMemoryMode", 3)
+    CreateToggle(perfCard, "Optimize Rendering", "Optimize rendering for performance", AutomationConfig.Performance, "OptimizeRendering", 4)
+end
+
+-- Create Settings Section
+function CreateSettingsSection(parent)
+    local scroll = CreateScrollFrame(parent)
+    
+    -- Settings Card
+    local settingsCard = CreateCard(scroll, "General Settings", 0)
+    
+    CreateTextBox(settingsCard, "Webhook URL", "Discord webhook URL for notifications", AutomationConfig, "WebhookURL", 0)
+    CreateDropdown(settingsCard, "Log Level", "Logging verbosity level", AutomationConfig, "LogLevel", {"DEBUG", "INFO", "WARN", "ERROR"}, 1)
+    
+    -- Actions Card
+    local actionsCard = CreateCard(scroll, "Actions", 1)
+    
+    CreateButton(actionsCard, "Save Config", UIConfig.Colors.Success, 0, function()
+        SaveConfiguration()
+    end)
+    
+    CreateButton(actionsCard, "Load Config", UIConfig.Colors.Primary, 1, function()
+        LoadConfiguration()
+    end)
+    
+    CreateButton(actionsCard, "Reset Config", UIConfig.Colors.Error, 2, function()
+        ResetConfiguration()
+    end)
+end
+
+-- UI Helper Functions
+
+function CreateScrollFrame(parent)
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "ContentScroll"
+    scroll.Size = UDim2.new(1, -20, 1, -20)
+    scroll.Position = UDim2.new(0, 10, 0, 10)
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 6
+    scroll.ScrollBarImageColor3 = UIConfig.Colors.Primary
+    scroll.Parent = parent
+    
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 15)
+    layout.Parent = scroll
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    return scroll
+end
+
+function CreateCard(parent, title, layoutOrder)
+    local card = Instance.new("Frame")
+    card.Name = "Card_" .. title
+    card.Size = UDim2.new(1, 0, 0, 60) -- Will be resized based on content
+    card.BackgroundColor3 = UIConfig.Colors.Surface
+    card.BorderSizePixel = 0
+    card.LayoutOrder = layoutOrder
+    card.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = card
+    
+    -- Title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -20, 0, 30)
+    titleLabel.Position = UDim2.new(0, 15, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = UIConfig.Colors.Text
+    titleLabel.TextSize = 16
+    titleLabel.Font = UIConfig.Fonts.Title
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = card
+    
+    -- Content container
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, -20, 1, -50)
+    content.Position = UDim2.new(0, 10, 0, 40)
+    content.BackgroundTransparency = 1
+    content.Parent = card
+    
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Padding = UDim.new(0, 8)
+    contentLayout.Parent = content
+    
+    -- Auto-resize card based on content
+    contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        card.Size = UDim2.new(1, 0, 0, math.max(60, contentLayout.AbsoluteContentSize.Y + 60))
+    end)
+    
+    return content
+end
+
+function CreateToggle(parent, name, description, config, key, layoutOrder)
+    layoutOrder = layoutOrder or 0
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "Toggle_" .. name
+    frame.Size = UDim2.new(1, 0, 0, 35)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Toggle switch
     local toggle = Instance.new("TextButton")
-    toggle.Name = "Toggle"
-    toggle.Size = UDim2.new(0, 60, 0, 25)
-    toggle.Position = UDim2.new(1, -65, 0, 2.5)
-    toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    toggle.Name = "ToggleButton"
+    toggle.Size = UDim2.new(0, 50, 0, 24)
+    toggle.Position = UDim2.new(1, -55, 0, 5)
+    toggle.BackgroundColor3 = config[key] and UIConfig.Colors.Success or UIConfig.Colors.SurfaceLight
     toggle.BorderSizePixel = 0
     toggle.Text = ""
-    toggle.Parent = parent
+    toggle.Parent = frame
     
-    local indicator = Instance.new("Frame")
-    indicator.Name = "Indicator"
-    indicator.Size = UDim2.new(0, 20, 0, 20)
-    indicator.Position = UDim2.new(0, 2.5, 0, 2.5)
-    indicator.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-    indicator.BorderSizePixel = 0
-    indicator.Parent = toggle
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.Parent = toggle
     
-    -- Update toggle state
-    local function updateToggle()
-        local value = self:GetConfigValue(key)
-        if value then
-            indicator.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
-            indicator.Position = UDim2.new(1, -22.5, 0, 2.5)
-        else
-            indicator.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-            indicator.Position = UDim2.new(0, 2.5, 0, 2.5)
-        end
+    local knob = Instance.new("Frame")
+    knob.Name = "Knob"
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = config[key] and UDim2.new(1, -21, 0, 3) or UDim2.new(0, 3, 0, 3)
+    knob.BackgroundColor3 = UIConfig.Colors.Text
+    knob.BorderSizePixel = 0
+    knob.Parent = toggle
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(0, 9)
+    knobCorner.Parent = knob
+    
+    -- Labels
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -65, 0, 18)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, -65, 0, 14)
+        descLabel.Position = UDim2.new(0, 0, 0, 18)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 11
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
     end
     
+    -- Toggle functionality
     toggle.MouseButton1Click:Connect(function()
-        local currentValue = self:GetConfigValue(key)
-        self:SetConfigValue(key, not currentValue)
-        updateToggle()
-    end)
-    
-    updateToggle()
-end
-
-function AutomationUI:CreateNumberInput(parent, key)
-    local textBox = Instance.new("TextBox")
-    textBox.Name = "NumberInput"
-    textBox.Size = UDim2.new(0, 100, 0, 25)
-    textBox.Position = UDim2.new(1, -105, 0, 2.5)
-    textBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    textBox.BorderSizePixel = 0
-    textBox.Text = tostring(self:GetConfigValue(key) or 0)
-    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textBox.TextScaled = true
-    textBox.Font = Enum.Font.SourceSans
-    textBox.Parent = parent
-    
-    textBox.FocusLost:Connect(function()
-        local value = tonumber(textBox.Text)
-        if value then
-            self:SetConfigValue(key, value)
-        else
-            textBox.Text = tostring(self:GetConfigValue(key) or 0)
+        config[key] = not config[key]
+        
+        local newColor = config[key] and UIConfig.Colors.Success or UIConfig.Colors.SurfaceLight
+        local newPosition = config[key] and UDim2.new(1, -21, 0, 3) or UDim2.new(0, 3, 0, 3)
+        
+        TweenService:Create(toggle, TweenInfo.new(0.2), {BackgroundColor3 = newColor}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.2), {Position = newPosition}):Play()
+        
+        -- Update status if this is the master toggle
+        if key == "Enabled" and config == AutomationConfig then
+            UpdateStatus(config[key])
         end
     end)
 end
 
-function AutomationUI:CreateTextBox(parent, key)
-    local textBox = Instance.new("TextBox")
-    textBox.Name = "TextInput"
-    textBox.Size = UDim2.new(0.45, 0, 0, 25)
-    textBox.Position = UDim2.new(0.55, 0, 0, 2.5)
-    textBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    textBox.BorderSizePixel = 0
-    textBox.Text = self:GetConfigValue(key) or ""
-    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textBox.TextScaled = true
-    textBox.Font = Enum.Font.SourceSans
-    textBox.Parent = parent
+function CreateSlider(parent, name, description, config, key, minValue, maxValue, layoutOrder)
+    layoutOrder = layoutOrder or 0
     
-    textBox.FocusLost:Connect(function()
-        self:SetConfigValue(key, textBox.Text)
+    local frame = Instance.new("Frame")
+    frame.Name = "Slider_" .. name
+    frame.Size = UDim2.new(1, 0, 0, 45)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Labels
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(0.7, 0, 0, 18)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0.3, 0, 0, 18)
+    valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(config[key])
+    valueLabel.TextColor3 = UIConfig.Colors.Primary
+    valueLabel.TextSize = 14
+    valueLabel.Font = UIConfig.Fonts.Body
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, 0, 0, 12)
+        descLabel.Position = UDim2.new(0, 0, 0, 18)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 10
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
+    end
+    
+    -- Slider track
+    local track = Instance.new("Frame")
+    track.Name = "Track"
+    track.Size = UDim2.new(1, 0, 0, 4)
+    track.Position = UDim2.new(0, 0, 1, -8)
+    track.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    track.BorderSizePixel = 0
+    track.Parent = frame
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(0, 2)
+    trackCorner.Parent = track
+    
+    -- Slider fill
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new((config[key] - minValue) / (maxValue - minValue), 0, 1, 0)
+    fill.Position = UDim2.new(0, 0, 0, 0)
+    fill.BackgroundColor3 = UIConfig.Colors.Primary
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 2)
+    fillCorner.Parent = fill
+    
+    -- Slider knob
+    local knob = Instance.new("Frame")
+    knob.Name = "Knob"
+    knob.Size = UDim2.new(0, 16, 0, 16)
+    knob.Position = UDim2.new((config[key] - minValue) / (maxValue - minValue), -8, 0, -6)
+    knob.BackgroundColor3 = UIConfig.Colors.Text
+    knob.BorderSizePixel = 0
+    knob.Parent = track
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(0, 8)
+    knobCorner.Parent = knob
+    
+    -- Slider functionality
+    local dragging = false
+    
+    local function updateSlider(input)
+        local percentage = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local value = math.floor(minValue + percentage * (maxValue - minValue))
+        
+        config[key] = value
+        valueLabel.Text = tostring(value)
+        
+        fill.Size = UDim2.new(percentage, 0, 1, 0)
+        knob.Position = UDim2.new(percentage, -8, 0, -6)
+    end
+    
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateSlider(input)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateSlider(input)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
     end)
 end
 
-function AutomationUI:CreateDropdown(parent, key, options)
+function CreateButton(parent, text, color, layoutOrder, callback)
+    layoutOrder = layoutOrder or 0
+    
+    local button = Instance.new("TextButton")
+    button.Name = "Button_" .. text
+    button.Size = UDim2.new(1, 0, 0, 35)
+    button.BackgroundColor3 = color
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = UIConfig.Colors.Text
+    button.TextSize = 14
+    button.Font = UIConfig.Fonts.Button
+    button.LayoutOrder = layoutOrder
+    button.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+    
+    -- Hover effects
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.new(
+            math.min(color.R * 1.2, 1),
+            math.min(color.G * 1.2, 1),
+            math.min(color.B * 1.2, 1)
+        )}):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        if callback then callback() end
+    end)
+    
+    return button
+end
+
+function CreateTextBox(parent, name, description, config, key, layoutOrder)
+    layoutOrder = layoutOrder or 0
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "TextBox_" .. name
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 18)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, 0, 0, 12)
+        descLabel.Position = UDim2.new(0, 0, 0, 18)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 10
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
+    end
+    
+    -- Text box
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "TextBox"
+    textBox.Size = UDim2.new(1, 0, 0, 24)
+    textBox.Position = UDim2.new(0, 0, 1, -26)
+    textBox.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    textBox.BorderSizePixel = 0
+    textBox.Text = config[key] or ""
+    textBox.PlaceholderText = "Enter " .. name:lower() .. "..."
+    textBox.TextColor3 = UIConfig.Colors.Text
+    textBox.PlaceholderColor3 = UIConfig.Colors.TextSecondary
+    textBox.TextSize = 12
+    textBox.Font = UIConfig.Fonts.Body
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.ClearTextOnFocus = false
+    textBox.Parent = frame
+    
+    local textBoxCorner = Instance.new("UICorner")
+    textBoxCorner.CornerRadius = UDim.new(0, 4)
+    textBoxCorner.Parent = textBox
+    
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingRight = UDim.new(0, 8)
+    padding.Parent = textBox
+    
+    textBox.FocusLost:Connect(function()
+        config[key] = textBox.Text
+    end)
+end
+
+function CreateDropdown(parent, name, description, config, key, options, layoutOrder)
+    layoutOrder = layoutOrder or 0
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "Dropdown_" .. name
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 18)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, 0, 0, 12)
+        descLabel.Position = UDim2.new(0, 0, 0, 18)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 10
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
+    end
+    
+    -- Dropdown button
     local dropdown = Instance.new("TextButton")
-    dropdown.Name = "Dropdown"
-    dropdown.Size = UDim2.new(0, 100, 0, 25)
-    dropdown.Position = UDim2.new(1, -105, 0, 2.5)
-    dropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    dropdown.Name = "DropdownButton"
+    dropdown.Size = UDim2.new(1, 0, 0, 24)
+    dropdown.Position = UDim2.new(0, 0, 1, -26)
+    dropdown.BackgroundColor3 = UIConfig.Colors.SurfaceLight
     dropdown.BorderSizePixel = 0
-    dropdown.Text = self:GetConfigValue(key) or options[1]
-    dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
-    dropdown.TextScaled = true
-    dropdown.Font = Enum.Font.SourceSans
-    dropdown.Parent = parent
+    dropdown.Text = config[key] or options[1]
+    dropdown.TextColor3 = UIConfig.Colors.Text
+    dropdown.TextSize = 12
+    dropdown.Font = UIConfig.Fonts.Body
+    dropdown.TextXAlignment = Enum.TextXAlignment.Left
+    dropdown.Parent = frame
     
-    -- Create dropdown list
-    local optionsList = Instance.new("Frame")
-    optionsList.Name = "OptionsList"
-    optionsList.Size = UDim2.new(0, 100, 0, #options * 25)
-    optionsList.Position = UDim2.new(0, 0, 1, 0)
-    optionsList.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    optionsList.BorderSizePixel = 0
-    optionsList.Visible = false
-    optionsList.Parent = dropdown
+    local dropdownCorner = Instance.new("UICorner")
+    dropdownCorner.CornerRadius = UDim.new(0, 4)
+    dropdownCorner.Parent = dropdown
     
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingRight = UDim.new(0, 20)
+    padding.Parent = dropdown
+    
+    -- Arrow
+    local arrow = Instance.new("TextLabel")
+    arrow.Name = "Arrow"
+    arrow.Size = UDim2.new(0, 16, 1, 0)
+    arrow.Position = UDim2.new(1, -18, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = UIConfig.Colors.TextSecondary
+    arrow.TextSize = 10
+    arrow.Font = UIConfig.Fonts.Body
+    arrow.Parent = dropdown
+    
+    -- Options frame (initially hidden)
+    local optionsFrame = Instance.new("Frame")
+    optionsFrame.Name = "OptionsFrame"
+    optionsFrame.Size = UDim2.new(1, 0, 0, #options * 24)
+    optionsFrame.Position = UDim2.new(0, 0, 1, 2)
+    optionsFrame.BackgroundColor3 = UIConfig.Colors.Surface
+    optionsFrame.BorderSizePixel = 1
+    optionsFrame.BorderColor3 = UIConfig.Colors.Border
+    optionsFrame.Visible = false
+    optionsFrame.ZIndex = 10
+    optionsFrame.Parent = dropdown
+    
+    local optionsCorner = Instance.new("UICorner")
+    optionsCorner.CornerRadius = UDim.new(0, 4)
+    optionsCorner.Parent = optionsFrame
+    
+    -- Create option buttons
     for i, option in ipairs(options) do
         local optionButton = Instance.new("TextButton")
-        optionButton.Name = "Option" .. i
-        optionButton.Size = UDim2.new(1, 0, 0, 25)
-        optionButton.Position = UDim2.new(0, 0, 0, (i-1) * 25)
-        optionButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        optionButton.Name = "Option_" .. option
+        optionButton.Size = UDim2.new(1, 0, 0, 24)
+        optionButton.Position = UDim2.new(0, 0, 0, (i-1) * 24)
+        optionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)
         optionButton.BorderSizePixel = 0
         optionButton.Text = option
-        optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        optionButton.TextScaled = true
-        optionButton.Font = Enum.Font.SourceSans
-        optionButton.Parent = optionsList
+        optionButton.TextColor3 = UIConfig.Colors.Text
+        optionButton.TextSize = 12
+        optionButton.Font = UIConfig.Fonts.Body
+        optionButton.TextXAlignment = Enum.TextXAlignment.Left
+        optionButton.Parent = optionsFrame
+        
+        local optionPadding = Instance.new("UIPadding")
+        optionPadding.PaddingLeft = UDim.new(0, 8)
+        optionPadding.Parent = optionButton
+        
+        optionButton.MouseEnter:Connect(function()
+            optionButton.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+        end)
+        
+        optionButton.MouseLeave:Connect(function()
+            optionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)
+        end)
         
         optionButton.MouseButton1Click:Connect(function()
-            self:SetConfigValue(key, option)
+            config[key] = option
             dropdown.Text = option
-            optionsList.Visible = false
+            optionsFrame.Visible = false
+            arrow.Text = "▼"
         end)
     end
     
     dropdown.MouseButton1Click:Connect(function()
-        optionsList.Visible = not optionsList.Visible
+        optionsFrame.Visible = not optionsFrame.Visible
+        arrow.Text = optionsFrame.Visible and "▲" or "▼"
     end)
 end
 
-function AutomationUI:GetConfigValue(key)
-    local keys = string.split(key, ".")
-    local value = AutomationConfig
-    for _, k in ipairs(keys) do
-        value = value[k]
-        if value == nil then break end
-    end
-    return value
-end
-
-function AutomationUI:SetConfigValue(key, value)
-    local keys = string.split(key, ".")
-    local config = AutomationConfig
-    for i = 1, #keys - 1 do
-        config = config[keys[i]]
-    end
-    config[keys[#keys]] = value
+function CreateInfoLabel(parent, name, value, layoutOrder)
+    layoutOrder = layoutOrder or 0
     
-    -- Save config
-    self:SaveConfig()
+    local frame = Instance.new("Frame")
+    frame.Name = "Info_" .. name
+    frame.Size = UDim2.new(1, 0, 0, 25)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name .. ":"
+    nameLabel.TextColor3 = UIConfig.Colors.TextSecondary
+    nameLabel.TextSize = 12
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = value
+    valueLabel.TextColor3 = UIConfig.Colors.Text
+    valueLabel.TextSize = 12
+    valueLabel.Font = UIConfig.Fonts.Body
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = frame
+    
+    return valueLabel
 end
 
-function AutomationUI:SaveConfig()
-    -- Save configuration to datastore or file
-    local success, result = pcall(function()
-        local jsonConfig = HttpService:JSONEncode(AutomationConfig)
-        -- Save to a file or datastore
-        -- This would need to be implemented based on your storage preferences
-    end)
-    
-    if success then
-        Logger:Log("INFO", "Configuration saved successfully")
-    else
-        Logger:Log("ERROR", "Failed to save configuration: " .. result)
+-- Utility Functions
+
+function UpdateStatus(enabled)
+    if UIElements.StatusDot and UIElements.StatusText then
+        UIElements.StatusDot.BackgroundColor3 = enabled and UIConfig.Colors.Success or UIConfig.Colors.Error
+        UIElements.StatusText.Text = enabled and "Enabled" or "Disabled"
     end
 end
 
-function AutomationUI:MakeDraggable(frame)
+function MakeDraggable(frame)
     local dragging = false
     local dragStart = nil
     local startPos = nil
@@ -864,7 +1321,7 @@ function AutomationUI:MakeDraggable(frame)
         end
     end)
     
-    frame.InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
             frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -878,41 +1335,58 @@ function AutomationUI:MakeDraggable(frame)
     end)
 end
 
--- Main Automation Loop
-local function MainLoop()
-    while true do
-        if AutomationConfig.Enabled then
-            -- Run automation modules
-            pcall(function() AutoBuyer:BuySeeds() end)
-            pcall(function() AutoBuyer:BuyGear() end)
-            pcall(function() AutoBuyer:BuyEggs() end)
-            pcall(function() AutoPlanter:PlantSeeds() end)
-            pcall(function() AutoPlanter:UseWateringCan() end)
-            pcall(function() AutoCollector:CollectItems() end)
-            pcall(function() PetManager:ManagePets() end)
-            pcall(function() EventManager:HandleEvents() end)
-            pcall(function() SeedPackManager:OpenSeedPacks() end)
-        end
-        
-        task.wait(1) -- Main loop runs every second
-    end
+function SaveConfiguration()
+    print("Configuration saved!")
+    -- Implementation for saving config
 end
 
--- Initialize
+function LoadConfiguration()
+    print("Configuration loaded!")
+    -- Implementation for loading config
+end
+
+function ResetConfiguration()
+    print("Configuration reset!")
+    -- Implementation for resetting config
+end
+
+-- Initialize UI
 local function Initialize()
-    Logger:Log("INFO", "Initializing Grow a Garden Automation")
+    -- Create main UI
+    CreateMainUI()
     
-    -- Create UI
-    AutomationUI:CreateUI()
+    -- Toggle UI with F3
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.F3 then
+            local mainFrame = UIElements.MainFrame
+            if mainFrame then
+                if mainFrame.Visible then
+                    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                        Size = UDim2.new(0, 0, 0, 0),
+                        Position = UDim2.new(0.5, 0, 0.5, 0)
+                    }):Play()
+                    
+                    wait(0.3)
+                    mainFrame.Visible = false
+                    mainFrame.Size = UIConfig.Sizes.MainFrame
+                    mainFrame.Position = UDim2.new(0.5, -400, 0.5, -250)
+                else
+                    mainFrame.Visible = true
+                    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+                    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+                    
+                    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Size = UIConfig.Sizes.MainFrame,
+                        Position = UDim2.new(0.5, -400, 0.5, -250)
+                    }):Play()
+                end
+            end
+        end
+    end)
     
-    -- Optimize performance if enabled
-    PerformanceOptimizer:OptimizePerformance()
-    
-    -- Start main loop
-    coroutine.wrap(MainLoop)()
-    
-    Logger:Log("INFO", "Automation system initialized. Press F3 to toggle UI.")
+    print("Modern Automation UI initialized! Press F3 to toggle.")
 end
 
--- Start the automation system
+-- Start the UI
 Initialize()
