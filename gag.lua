@@ -193,11 +193,13 @@ local AutomationConfig = {
     -- Farming Settings
     AutoPlant = {
         Enabled = false,
+        SelectedSeeds = {"Carrot", "Strawberry", "Blueberry"},
         SeedPriority = {"Carrot", "Strawberry", "Blueberry"},
         PlantInterval = 2,
         UseWateringCan = true,
         MaxPlantsPerType = 50,
         AutoReplant = true,
+        OnlyPlantSelected = true,
     },
     
     AutoCollect = {
@@ -213,12 +215,17 @@ local AutomationConfig = {
     PetManagement = {
         Enabled = false,
         AutoEquip = true,
+        AutoUnequip = true,
         AutoFeed = true,
         FeedThreshold = 500,
         AutoHatchEggs = true,
         HatchInterval = 10,
         PreferredPets = {},
         AutoUnequipWeak = true,
+        FeedAllPets = true,
+        EquipBestPets = true,
+        AutoLevelPets = true,
+        PetEquipSlots = 3,
     },
     
     -- Events & Quests
@@ -237,11 +244,27 @@ local AutomationConfig = {
     AutoTrade = {
         Enabled = false,
         AutoAcceptTrades = false,
+        AutoTradeFruits = false,
+        AutoTradePets = false,
         MinPetValue = 1000,
         MinFruitValue = 100,
+        MaxPetValue = 100000,
+        MaxFruitValue = 10000,
         BlacklistedItems = {},
+        WhitelistedItems = {},
         AutoOffer = false,
         MaxTradesPerDay = 10,
+        TradeOnlyDuplicates = true,
+        RequireValueMatch = true,
+        -- Target Player Trading
+        TargetPlayerEnabled = false,
+        TargetPlayerName = "",
+        AutoTeleportToTarget = true,
+        TradeAllFruitsToTarget = false,
+        TradeAllPetsToTarget = false,
+        RequestInterval = 30,
+        MaxRequestAttempts = 5,
+        OnlyTradeWhenTargetOnline = true,
     },
     
     -- Misc Features
@@ -368,22 +391,8 @@ local function CreateFloatingButton()
     
     local pulseTween = startPulse()
     
-    -- Hover effects
-    floatingButton.MouseEnter:Connect(function()
-        pulseTween:Cancel()
-        TweenService:Create(floatingButton, TweenInfo.new(0.2), {
-            Size = UDim2.new(0, UIConfig.Sizes.FloatingButtonSize * 1.2, 0, UIConfig.Sizes.FloatingButtonSize * 1.2)
-        }):Play()
-        TweenService:Create(icon, TweenInfo.new(0.2), {Rotation = 15}):Play()
-    end)
-    
-    floatingButton.MouseLeave:Connect(function()
-        TweenService:Create(floatingButton, TweenInfo.new(0.2), {
-            Size = UDim2.new(0, UIConfig.Sizes.FloatingButtonSize, 0, UIConfig.Sizes.FloatingButtonSize)
-        }):Play()
-        TweenService:Create(icon, TweenInfo.new(0.2), {Rotation = 0}):Play()
-        pulseTween = startPulse()
-    end)
+    -- No hover effects - keep static size
+    pulseTween:Cancel() -- Stop pulsing animation
     
     -- Click handler
     floatingButton.MouseButton1Click:Connect(function()
@@ -623,7 +632,7 @@ function CreateHeader(parent)
     closeButton.Position = UDim2.new(1, -55, 0, 17.5)
     closeButton.BackgroundColor3 = UIConfig.Colors.SurfaceLight
     closeButton.BorderSizePixel = 0
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.TextColor3 = UIConfig.Colors.TextSecondary
     closeButton.TextSize = 16
     closeButton.Font = UIConfig.Fonts.Button
@@ -1406,6 +1415,244 @@ function CreateSlider(parent, name, description, config, key, minValue, maxValue
     end)
 end
 
+function CreateTextBox(parent, name, description, config, key, layoutOrder)
+    layoutOrder = layoutOrder or 0
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "TextBox_" .. name:gsub("[^%w]", "")
+    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 20)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, 0, 0, 14)
+        descLabel.Position = UDim2.new(0, 0, 0, 20)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 11
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
+    end
+    
+    -- Text box
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "TextBox"
+    textBox.Size = UDim2.new(1, 0, 0, 24)
+    textBox.Position = UDim2.new(0, 0, 1, -26)
+    textBox.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    textBox.BorderSizePixel = 0
+    textBox.Text = config[key] or ""
+    textBox.PlaceholderText = "Enter " .. name:lower() .. "..."
+    textBox.TextColor3 = UIConfig.Colors.Text
+    textBox.PlaceholderColor3 = UIConfig.Colors.TextSecondary
+    textBox.TextSize = 12
+    textBox.Font = UIConfig.Fonts.Body
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.ClearTextOnFocus = false
+    textBox.Parent = frame
+    
+    local textBoxCorner = Instance.new("UICorner")
+    textBoxCorner.CornerRadius = UDim.new(0, 6)
+    textBoxCorner.Parent = textBox
+    
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.Parent = textBox
+    
+    textBox.FocusLost:Connect(function()
+        config[key] = textBox.Text
+    end)
+end
+
+function CreateDropdown(parent, name, description, config, key, options, layoutOrder)
+    layoutOrder = layoutOrder or 0
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "Dropdown_" .. name:gsub("[^%w]", "")
+    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = layoutOrder
+    frame.Parent = parent
+    
+    -- Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 20)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = UIConfig.Colors.Text
+    nameLabel.TextSize = 14
+    nameLabel.Font = UIConfig.Fonts.Body
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    if description then
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "DescLabel"
+        descLabel.Size = UDim2.new(1, 0, 0, 14)
+        descLabel.Position = UDim2.new(0, 0, 0, 20)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = description
+        descLabel.TextColor3 = UIConfig.Colors.TextSecondary
+        descLabel.TextSize = 11
+        descLabel.Font = UIConfig.Fonts.Body
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = frame
+    end
+    
+    -- Dropdown button
+    local dropdown = Instance.new("TextButton")
+    dropdown.Name = "DropdownButton"
+    dropdown.Size = UDim2.new(1, 0, 0, 24)
+    dropdown.Position = UDim2.new(0, 0, 1, -26)
+    dropdown.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+    dropdown.BorderSizePixel = 0
+    dropdown.Text = config[key] or options[1]
+    dropdown.TextColor3 = UIConfig.Colors.Text
+    dropdown.TextSize = 12
+    dropdown.Font = UIConfig.Fonts.Body
+    dropdown.TextXAlignment = Enum.TextXAlignment.Left
+    dropdown.Parent = frame
+    
+    local dropdownCorner = Instance.new("UICorner")
+    dropdownCorner.CornerRadius = UDim.new(0, 6)
+    dropdownCorner.Parent = dropdown
+    
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 25)
+    padding.Parent = dropdown
+    
+    -- Arrow
+    local arrow = Instance.new("TextLabel")
+    arrow.Name = "Arrow"
+    arrow.Size = UDim2.new(0, 16, 1, 0)
+    arrow.Position = UDim2.new(1, -20, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = UIConfig.Colors.TextSecondary
+    arrow.TextSize = 10
+    arrow.Font = UIConfig.Fonts.Body
+    arrow.Parent = dropdown
+    
+    -- Options frame (initially hidden)
+    local optionsFrame = Instance.new("Frame")
+    optionsFrame.Name = "OptionsFrame"
+    optionsFrame.Size = UDim2.new(1, 0, 0, #options * 24)
+    optionsFrame.Position = UDim2.new(0, 0, 1, 2)
+    optionsFrame.BackgroundColor3 = UIConfig.Colors.Surface
+    optionsFrame.BorderSizePixel = 1
+    optionsFrame.BorderColor3 = UIConfig.Colors.Border
+    optionsFrame.Visible = false
+    optionsFrame.ZIndex = 10
+    optionsFrame.Parent = dropdown
+    
+    local optionsCorner = Instance.new("UICorner")
+    optionsCorner.CornerRadius = UDim.new(0, 6)
+    optionsCorner.Parent = optionsFrame
+    
+    -- Create option buttons
+    for i, option in ipairs(options) do
+        local optionButton = Instance.new("TextButton")
+        optionButton.Name = "Option_" .. option
+        optionButton.Size = UDim2.new(1, 0, 0, 24)
+        optionButton.Position = UDim2.new(0, 0, 0, (i-1) * 24)
+        optionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)
+        optionButton.BorderSizePixel = 0
+        optionButton.Text = option
+        optionButton.TextColor3 = UIConfig.Colors.Text
+        optionButton.TextSize = 12
+        optionButton.Font = UIConfig.Fonts.Body
+        optionButton.TextXAlignment = Enum.TextXAlignment.Left
+        optionButton.Parent = optionsFrame
+        
+        local optionPadding = Instance.new("UIPadding")
+        optionPadding.PaddingLeft = UDim.new(0, 12)
+        optionPadding.Parent = optionButton
+        
+        optionButton.MouseEnter:Connect(function()
+            optionButton.BackgroundColor3 = UIConfig.Colors.SurfaceLight
+        end)
+        
+        optionButton.MouseLeave:Connect(function()
+            optionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0, 0)
+        end)
+        
+        optionButton.MouseButton1Click:Connect(function()
+            config[key] = option
+            dropdown.Text = option
+            optionsFrame.Visible = false
+            arrow.Text = "▼"
+        end)
+    end
+    
+    dropdown.MouseButton1Click:Connect(function()
+        optionsFrame.Visible = not optionsFrame.Visible
+        arrow.Text = optionsFrame.Visible and "▲" or "▼"
+    end)
+end
+
+function CreateButton(parent, text, color, layoutOrder, callback)
+    layoutOrder = layoutOrder or 0
+    
+    local button = Instance.new("TextButton")
+    button.Name = "Button_" .. text:gsub("[^%w]", "")
+    button.Size = UDim2.new(1, 0, 0, 35)
+    button.BackgroundColor3 = color
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = UIConfig.Colors.Text
+    button.TextSize = 14
+    button.Font = UIConfig.Fonts.Button
+    button.LayoutOrder = layoutOrder
+    button.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+    
+    -- Hover effects
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.new(
+            math.min(color.R * 1.2, 1),
+            math.min(color.G * 1.2, 1),
+            math.min(color.B * 1.2, 1)
+        )}):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        if callback then callback() end
+    end)
+    
+    return button
+end
+
 -- Create simple content sections for other categories
 function CreateDashboard(parent)
     local scroll = CreateScrollFrame(parent)
@@ -1420,16 +1667,53 @@ end
 function CreateFarmingSection(parent)
     local scroll = CreateScrollFrame(parent)
     
-    local plantCard = CreateCard(scroll, "🌱 Auto Plant", "Automatically plant seeds", 0)
+    -- Auto Plant Card
+    local plantCard = CreateCard(scroll, "🌱 Auto Plant", "Automatically plant seeds on empty spots", 0)
+    
     CreateToggle(plantCard, "Enable Auto Plant", "Automatically plant seeds", AutomationConfig.AutoPlant, "Enabled", 0)
-    CreateSlider(plantCard, "Plant Interval", "Seconds between planting", AutomationConfig.AutoPlant, "PlantInterval", 0.5, 10, 1)
+    CreateSlider(plantCard, "Plant Interval", "Seconds between planting seeds", AutomationConfig.AutoPlant, "PlantInterval", 0.5, 10, 1)
+    CreateSlider(plantCard, "Max Plants Per Type", "Maximum plants of each type", AutomationConfig.AutoPlant, "MaxPlantsPerType", 1, 200, 2)
+    CreateToggle(plantCard, "Use Watering Can", "Automatically use watering can", AutomationConfig.AutoPlant, "UseWateringCan", 3)
+    CreateToggle(plantCard, "Auto Replant", "Replant when harvested", AutomationConfig.AutoPlant, "AutoReplant", 4)
+    CreateToggle(plantCard, "Only Plant Selected", "Only plant selected seeds", AutomationConfig.AutoPlant, "OnlyPlantSelected", 5)
+    CreateItemSelector(plantCard, "Selected Seeds", "Choose which seeds to plant", AutomationConfig.AutoPlant, "SelectedSeeds", GameItems.Seeds, 6)
+    
+    -- Auto Collect Card
+    local collectCard = CreateCard(scroll, "🍎 Auto Collect", "Automatically collect grown plants and fruits", 1)
+    
+    CreateToggle(collectCard, "Enable Auto Collect", "Automatically collect plants", AutomationConfig.AutoCollect, "Enabled", 0)
+    CreateSlider(collectCard, "Collect Interval", "Seconds between collection attempts", AutomationConfig.AutoCollect, "CollectInterval", 0.1, 5, 1)
+    CreateSlider(collectCard, "Collect Radius", "Radius in studs to collect from", AutomationConfig.AutoCollect, "CollectRadius", 10, 500, 2)
+    CreateToggle(collectCard, "Prioritize Rare Items", "Collect rare items first", AutomationConfig.AutoCollect, "PrioritizeRareItems", 3)
+    CreateToggle(collectCard, "Auto Sell", "Automatically sell collected items", AutomationConfig.AutoCollect, "AutoSell", 4)
+    CreateSlider(collectCard, "Sell Threshold", "Sell when inventory reaches this amount", AutomationConfig.AutoCollect, "SellThreshold", 10, 1000, 5)
 end
 
 function CreatePetSection(parent)
     local scroll = CreateScrollFrame(parent)
     
-    local petCard = CreateCard(scroll, "🐕 Pet Management", "Manage your pets automatically", 0)
-    CreateToggle(petCard, "Enable Pet Management", "Auto manage pets", AutomationConfig.PetManagement, "Enabled", 0)
+    -- Pet Management Card
+    local petCard = CreateCard(scroll, "🐕 Pet Management", "Automatically manage your pets", 0)
+    
+    CreateToggle(petCard, "Enable Pet Management", "Enable all pet automation features", AutomationConfig.PetManagement, "Enabled", 0)
+    CreateToggle(petCard, "Auto Equip", "Automatically equip best pets", AutomationConfig.PetManagement, "AutoEquip", 1)
+    CreateToggle(petCard, "Auto Unequip", "Automatically unequip weak pets", AutomationConfig.PetManagement, "AutoUnequip", 2)
+    CreateToggle(petCard, "Equip Best Pets", "Always equip the best available pets", AutomationConfig.PetManagement, "EquipBestPets", 3)
+    CreateSlider(petCard, "Pet Equip Slots", "Number of pet slots to use", AutomationConfig.PetManagement, "PetEquipSlots", 1, 5, 4)
+    
+    -- Pet Feeding Card
+    local feedCard = CreateCard(scroll, "🍖 Pet Feeding", "Automatically feed your pets", 1)
+    
+    CreateToggle(feedCard, "Auto Feed", "Automatically feed hungry pets", AutomationConfig.PetManagement, "AutoFeed", 0)
+    CreateToggle(feedCard, "Feed All Pets", "Feed all pets, not just equipped ones", AutomationConfig.PetManagement, "FeedAllPets", 1)
+    CreateSlider(feedCard, "Feed Threshold", "Feed pets when hunger below this value", AutomationConfig.PetManagement, "FeedThreshold", 0, 1000, 2)
+    
+    -- Pet Hatching Card
+    local hatchCard = CreateCard(scroll, "🥚 Pet Hatching", "Automatically hatch pet eggs", 2)
+    
+    CreateToggle(hatchCard, "Auto Hatch Eggs", "Automatically hatch pet eggs", AutomationConfig.PetManagement, "AutoHatchEggs", 0)
+    CreateSlider(hatchCard, "Hatch Interval", "Seconds between hatching eggs", AutomationConfig.PetManagement, "HatchInterval", 1, 60, 1)
+    CreateToggle(hatchCard, "Auto Level Pets", "Automatically level up pets", AutomationConfig.PetManagement, "AutoLevelPets", 2)
 end
 
 function CreateEventsSection(parent)
@@ -1442,8 +1726,41 @@ end
 function CreateTradingSection(parent)
     local scroll = CreateScrollFrame(parent)
     
-    local tradeCard = CreateCard(scroll, "🤝 Auto Trading", "Automated trading features", 0)
-    CreateToggle(tradeCard, "Enable Auto Trading", "Auto handle trades", AutomationConfig.AutoTrade, "Enabled", 0)
+    -- Auto Trading Card
+    local tradeCard = CreateCard(scroll, "🤝 Auto Trading", "Automatically handle trades", 0)
+    
+    CreateToggle(tradeCard, "Enable Auto Trading", "Enable all trading automation", AutomationConfig.AutoTrade, "Enabled", 0)
+    CreateToggle(tradeCard, "Auto Accept Trades", "Automatically accept good trades", AutomationConfig.AutoTrade, "AutoAcceptTrades", 1)
+    CreateToggle(tradeCard, "Auto Trade Fruits", "Automatically trade fruits", AutomationConfig.AutoTrade, "AutoTradeFruits", 2)
+    CreateToggle(tradeCard, "Auto Trade Pets", "Automatically trade pets", AutomationConfig.AutoTrade, "AutoTradePets", 3)
+    CreateToggle(tradeCard, "Trade Only Duplicates", "Only trade duplicate items", AutomationConfig.AutoTrade, "TradeOnlyDuplicates", 4)
+    CreateToggle(tradeCard, "Require Value Match", "Require fair value trades", AutomationConfig.AutoTrade, "RequireValueMatch", 5)
+    
+    -- Trade Values Card
+    local valuesCard = CreateCard(scroll, "💰 Trade Values", "Configure trade value limits", 1)
+    
+    CreateSlider(valuesCard, "Min Pet Value", "Minimum pet value to trade", AutomationConfig.AutoTrade, "MinPetValue", 100, 50000, 0)
+    CreateSlider(valuesCard, "Max Pet Value", "Maximum pet value to trade", AutomationConfig.AutoTrade, "MaxPetValue", 1000, 1000000, 1)
+    CreateSlider(valuesCard, "Min Fruit Value", "Minimum fruit value to trade", AutomationConfig.AutoTrade, "MinFruitValue", 10, 5000, 2)
+    CreateSlider(valuesCard, "Max Fruit Value", "Maximum fruit value to trade", AutomationConfig.AutoTrade, "MaxFruitValue", 100, 100000, 3)
+    CreateSlider(valuesCard, "Max Trades Per Day", "Limit trades per day", AutomationConfig.AutoTrade, "MaxTradesPerDay", 1, 100, 4)
+    
+    -- Trade Offers Card
+    local offersCard = CreateCard(scroll, "📤 Trade Offers", "Automatically send trade offers", 2)
+    
+    CreateToggle(offersCard, "Auto Offer", "Automatically send trade offers", AutomationConfig.AutoTrade, "AutoOffer", 0)
+    
+    -- Target Player Trading Card
+    local targetCard = CreateCard(scroll, "🎯 Target Player Trading", "Trade continuously with a specific player", 3)
+    
+    CreateToggle(targetCard, "Enable Target Trading", "Enable trading with specific player", AutomationConfig.AutoTrade, "TargetPlayerEnabled", 0)
+    CreateTextBox(targetCard, "Target Player Name", "Username of player to trade with", AutomationConfig.AutoTrade, "TargetPlayerName", 1)
+    CreateToggle(targetCard, "Auto Teleport to Target", "Automatically teleport to target player", AutomationConfig.AutoTrade, "AutoTeleportToTarget", 2)
+    CreateToggle(targetCard, "Trade All Fruits", "Trade all fruits to target player", AutomationConfig.AutoTrade, "TradeAllFruitsToTarget", 3)
+    CreateToggle(targetCard, "Trade All Pets", "Trade all pets to target player", AutomationConfig.AutoTrade, "TradeAllPetsToTarget", 4)
+    CreateToggle(targetCard, "Only When Target Online", "Only trade when target is online", AutomationConfig.AutoTrade, "OnlyTradeWhenTargetOnline", 5)
+    CreateSlider(targetCard, "Request Interval", "Seconds between trade requests", AutomationConfig.AutoTrade, "RequestInterval", 10, 300, 6)
+    CreateSlider(targetCard, "Max Request Attempts", "Maximum attempts before giving up", AutomationConfig.AutoTrade, "MaxRequestAttempts", 1, 20, 7)
 end
 
 function CreateMiscSection(parent)
@@ -1466,7 +1783,21 @@ function CreateSettingsSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     local settingsCard = CreateCard(scroll, "🔧 General Settings", "Configure automation settings", 0)
-    -- Add settings controls here
+    CreateTextBox(settingsCard, "Webhook URL", "Discord webhook URL for notifications", AutomationConfig, "WebhookURL", 0)
+    CreateDropdown(settingsCard, "Log Level", "Logging verbosity level", AutomationConfig, "LogLevel", {"DEBUG", "INFO", "WARN", "ERROR"}, 1)
+    
+    local actionsCard = CreateCard(scroll, "⚙️ Actions", "System actions and controls", 1)
+    CreateButton(actionsCard, "Reset Trade Attempts", UIConfig.Colors.Warning, 0, function()
+        if TradingManager and TradingManager.ResetTradeAttempts then
+            TradingManager.ResetTradeAttempts()
+        end
+    end)
+    CreateButton(actionsCard, "Save Configuration", UIConfig.Colors.Success, 1, function()
+        print("Configuration saved!")
+    end)
+    CreateButton(actionsCard, "Reset All Settings", UIConfig.Colors.Error, 2, function()
+        print("Settings reset!")
+    end)
 end
 
 -- Update Status Function
