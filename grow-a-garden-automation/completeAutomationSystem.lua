@@ -139,6 +139,7 @@ local AutomationConfig = {
     -- Trading
     AutoTrade = {
         Enabled = false,
+        AutoAcceptGifts = false,
         AutoAcceptTrades = false,
         AutoTradeFruits = false,
         AutoTradePets = false,
@@ -624,16 +625,19 @@ function ShopManager.BuySeeds()
         return
     end
     
-    -- Open shop UI first
-    ShopManager.OpenShop()
-    ShopManager.NavigateToSeedShop()
-    
     for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds or {}) do
-        local seedName = seedType .. " Seed"
+        -- Use real game SeedData
+        local seedInfo = SeedData and SeedData[seedType]
+        if not seedInfo or not seedInfo.DisplayInShop then
+            webhook:Log("WARN", "Seed not available in shop", {SeedType = seedType})
+            continue
+        end
+        
+        local seedName = seedInfo.SeedName
         local currentStock = backpack[seedName] or 0
         
         if currentStock < (AutomationConfig.AutoBuySeeds.MinStock or 10) then
-            local seedInfo = SeedData[seedType]
+            
             if seedInfo and sheckles >= seedInfo.Price + AutomationConfig.AutoBuySeeds.KeepMinimum then
                 local buyAmount = math.min(AutomationConfig.AutoBuySeeds.BuyUpTo - currentStock, 
                                          math.floor((sheckles - AutomationConfig.AutoBuySeeds.KeepMinimum) / seedInfo.Price))
@@ -641,18 +645,13 @@ function ShopManager.BuySeeds()
                 if buyAmount > 0 then
                     for i = 1, buyAmount do
                         local success, error = pcall(function()
-                            -- Method 1: Try to find and click buy button in UI
-                            local buyButton = PlayerGui:FindFirstChild(seedType, true)
-                            if buyButton then
-                                local button = buyButton:FindFirstChild("Buy") or buyButton:FindFirstChild("Purchase")
-                                if button and button:IsA("GuiButton") then
-                                    button.MouseButton1Click:Fire()
-                                    wait(0.5)
-                                end
+                            -- Use Market.PromptPurchase with real PurchaseID
+                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
+                                Remotes.Market.PromptPurchase.send({
+                                    type = 1, -- Seeds type
+                                    id = seedInfo.PurchaseID
+                                })
                             end
-                            
-                            -- Method 2: Use game remote
-                            ReplicatedStorage.GameEvents.BuySeedStock:FireServer(seedType)
                         end)
                         
                         if success then
@@ -687,27 +686,41 @@ function ShopManager.BuyGear()
         local currentStock = backpack[gearType] or 0
         
         if currentStock < AutomationConfig.AutoBuyGear.MinStock then
-            local gearInfo = GearData[gearType]
-            if gearInfo and sheckles >= gearInfo.Price + AutomationConfig.AutoBuyGear.KeepMinimum then
+            -- Find gear info from our GameItems.Gear
+            local gearInfo = nil
+            for _, gear in ipairs(GameItems.Gear) do
+                if gear.name == gearType then
+                    gearInfo = gear
+                    break
+                end
+            end
+            
+            if gearInfo and sheckles >= gearInfo.price + AutomationConfig.AutoBuyGear.KeepMinimum then
                 local buyAmount = math.min(AutomationConfig.AutoBuyGear.BuyUpTo - currentStock,
-                                         math.floor((sheckles - AutomationConfig.AutoBuyGear.KeepMinimum) / gearInfo.Price))
+                                         math.floor((sheckles - AutomationConfig.AutoBuyGear.KeepMinimum) / gearInfo.price))
                 
                 if buyAmount > 0 then
                     for i = 1, buyAmount do
                         local success, error = pcall(function()
-                            MarketController:PromptPurchase(1, gearInfo.PurchaseID)
+                            -- Use Market.PromptPurchase with real PurchaseID
+                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
+                                Remotes.Market.PromptPurchase.send({
+                                    type = 2, -- Gear type
+                                    id = gearInfo.id
+                                })
+                            end
                         end)
                         
                         if success then
-                            webhook:Log("INFO", "Purchased gear", {GearType = gearType, Price = gearInfo.Price})
-                            sheckles = sheckles - gearInfo.Price
+                            webhook:Log("INFO", "Purchased gear", {GearType = gearType, Price = gearInfo.price})
+                            sheckles = sheckles - gearInfo.price
                             wait(1)
                         else
                             webhook:Log("ERROR", "Failed to buy gear", {Error = error})
                             break
                         end
                         
-                        if sheckles < gearInfo.Price + AutomationConfig.AutoBuyGear.KeepMinimum then
+                        if sheckles < gearInfo.price + AutomationConfig.AutoBuyGear.KeepMinimum then
                             break
                         end
                     end
@@ -726,15 +739,29 @@ function ShopManager.BuyEggs()
     if sheckles < AutomationConfig.AutoBuyEggs.KeepMinimum then return end
     
     for _, eggType in pairs(AutomationConfig.AutoBuyEggs.SelectedEggs) do
-        local eggInfo = PetEggData[eggType]
-        if eggInfo and sheckles >= eggInfo.Price + AutomationConfig.AutoBuyEggs.KeepMinimum then
+        -- Find egg info from our GameItems.Eggs
+        local eggInfo = nil
+        for _, egg in ipairs(GameItems.Eggs) do
+            if egg.name == eggType then
+                eggInfo = egg
+                break
+            end
+        end
+        
+        if eggInfo and sheckles >= eggInfo.price + AutomationConfig.AutoBuyEggs.KeepMinimum then
             local success, error = pcall(function()
-                MarketController:PromptPurchase(2, eggInfo.PurchaseID)
+                -- Use Market.PromptPurchase with real PurchaseID
+                if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
+                    Remotes.Market.PromptPurchase.send({
+                        type = 3, -- Eggs type
+                        id = eggInfo.id
+                    })
+                end
             end)
             
             if success then
-                webhook:Log("INFO", "Purchased egg", {EggType = eggType, Price = eggInfo.Price})
-                sheckles = sheckles - eggInfo.Price
+                webhook:Log("INFO", "Purchased egg", {EggType = eggType, Price = eggInfo.price})
+                sheckles = sheckles - eggInfo.price
                 wait(2)
             else
                 webhook:Log("ERROR", "Failed to buy egg", {Error = error})
@@ -1177,14 +1204,22 @@ end
 function TradingManager.HandleTrades()
     if not AutomationConfig or not AutomationConfig.AutoTrade or not AutomationConfig.AutoTrade.Enabled then return end
     
+    -- Auto accept incoming gifts
+    if AutomationConfig.AutoTrade.AutoAcceptGifts then
+        TradingManager.AutoAcceptGifts()
+    end
+    
+    -- Auto accept incoming trades
     if AutomationConfig.AutoTrade.AutoAcceptTrades then
         TradingManager.AutoAcceptTrades()
     end
     
+    -- Send general trade offers
     if AutomationConfig.AutoTrade.AutoOffer then
         TradingManager.SendTradeOffers()
     end
     
+    -- Handle target player trading (teleport + equip + gift)
     if AutomationConfig.AutoTrade.TargetPlayerEnabled then
         TradingManager.HandleTargetPlayerTrading()
     end
@@ -1319,6 +1354,244 @@ function TradingManager.SendTradeRequest(targetPlayer, items)
     end
 end
 
+-- Auto Accept Gift UI Navigation
+function TradingManager.AutoAcceptGifts()
+    if not AutomationConfig.AutoTrade.AutoAcceptTrades then return end
+    
+    local success, error = pcall(function()
+        -- Look for gift notification UIs based on real game structure
+        local giftNotification = PlayerGui:FindFirstChild("Gift_Notification", true)
+        if giftNotification then
+            -- Check if the gift notification has the proper structure
+            local holder = giftNotification:FindFirstChild("Holder")
+            if holder then
+                local frame = holder:FindFirstChild("Frame")
+                if frame then
+                    local acceptButton = frame:FindFirstChild("Accept")
+                    if acceptButton and acceptButton:IsA("TextButton") and acceptButton.Visible then
+                        -- Click the accept button
+                        acceptButton.MouseButton1Click:Fire()
+                        webhook:Log("INFO", "Auto-accepted gift via Gift_Notification")
+                        wait(1)
+                        return true
+                    end
+                end
+            end
+        end
+        
+        -- Look for friend notification UIs
+        local friendNotification = PlayerGui:FindFirstChild("Friend_Notification", true)
+        if friendNotification then
+            local acceptButton = friendNotification:FindFirstChild("Accept", true) or friendNotification:FindFirstChild("AcceptButton", true)
+            if acceptButton and acceptButton:IsA("GuiButton") and acceptButton.Visible then
+                acceptButton.MouseButton1Click:Fire()
+                webhook:Log("INFO", "Auto-accepted friend request")
+                wait(1)
+                return true
+            end
+        end
+        
+        -- Look for trade notification UIs
+        local tradeNotification = PlayerGui:FindFirstChild("Trade_Notification", true)
+        if tradeNotification then
+            local acceptButton = tradeNotification:FindFirstChild("Accept", true) or tradeNotification:FindFirstChild("AcceptButton", true)
+            if acceptButton and acceptButton:IsA("GuiButton") and acceptButton.Visible then
+                acceptButton.MouseButton1Click:Fire()
+                webhook:Log("INFO", "Auto-accepted trade request")
+                wait(1)
+                return true
+            end
+        end
+        
+        -- Look for any accept buttons in specific UI patterns
+        for _, gui in pairs(PlayerGui:GetDescendants()) do
+            if gui:IsA("TextButton") and gui.Visible and gui.Name == "Accept" then
+                local parent = gui.Parent
+                if parent and parent.Parent and parent.Parent.Name == "Holder" then
+                    -- This matches the Gift_Notification structure
+                    gui.MouseButton1Click:Fire()
+                    webhook:Log("INFO", "Auto-accepted notification", {ParentName = parent.Parent.Parent.Name})
+                    wait(1)
+                    return true
+                end
+            end
+        end
+        
+        -- Fallback: Look for any accept buttons in notification-like UIs
+        for _, gui in pairs(PlayerGui:GetDescendants()) do
+            if gui:IsA("TextButton") and gui.Visible then
+                local text = gui.Text:lower()
+                if text:find("accept") or text:find("yes") or text:find("confirm") then
+                    local parent = gui.Parent
+                    if parent and (parent.Name:lower():find("gift") or parent.Name:lower():find("trade") or parent.Name:lower():find("friend") or parent.Name:lower():find("notification")) then
+                        gui.MouseButton1Click:Fire()
+                        webhook:Log("INFO", "Auto-accepted UI prompt", {ButtonText = gui.Text, ParentName = parent.Name})
+                        wait(1)
+                        return true
+                    end
+                end
+            end
+        end
+    end)
+    
+    if not success then
+        webhook:Log("ERROR", "AutoAcceptGifts failed", {Error = error})
+    end
+end
+
+-- Equip Item for Trading
+function TradingManager.EquipItemForTrading(itemName, itemType)
+    local success, result = pcall(function()
+        local character = LocalPlayer.Character
+        if not character then return false end
+        
+        if itemType == "fruit" then
+            -- Find fruit in backpack and equip it as a tool
+            local backpack = DataManager.GetBackpack()
+            if backpack[itemName] and backpack[itemName] > 0 then
+                -- Look for fruit tool in backpack
+                local fruitTool = LocalPlayer.Backpack:FindFirstChild(itemName)
+                if fruitTool and fruitTool:IsA("Tool") then
+                    fruitTool.Parent = character
+                    wait(0.5)
+                    return true
+                end
+                
+                -- Alternative: Try to find via tool's actual name pattern
+                for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                    if tool:IsA("Tool") and tool.Name:find(itemName) then
+                        tool.Parent = character
+                        wait(0.5)
+                        return true
+                    end
+                end
+                
+                -- Try to equip via inventory UI
+                local inventoryUI = PlayerGui:FindFirstChild("InventoryGui", true) or PlayerGui:FindFirstChild("Inventory", true)
+                if inventoryUI then
+                    local itemButton = inventoryUI:FindFirstChild(itemName, true)
+                    if itemButton and itemButton:IsA("GuiButton") then
+                        itemButton.MouseButton1Click:Fire()
+                        wait(0.5)
+                        return true
+                    end
+                end
+            end
+        elseif itemType == "pet" then
+            -- Equip pet for trading using the real PetsService
+            if PetsService then
+                local petData = DataManager.GetPetData()
+                local inventory = petData.PetInventory and petData.PetInventory.Data or {}
+                
+                -- Find the pet by name and equip it
+                for petId, pet in pairs(inventory) do
+                    if pet.PetType == itemName then
+                        PetsService:EquipPet(petId, 1) -- Equip to slot 1
+                        wait(1)
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end)
+    
+    if success and result then
+        webhook:Log("INFO", "Equipped item for trading", {Item = itemName, Type = itemType})
+        return true
+    else
+        webhook:Log("ERROR", "Failed to equip item", {Item = itemName, Type = itemType, Error = result})
+        return false
+    end
+end
+
+-- Find and Activate Gift Proximity Prompt
+function TradingManager.FindAndActivateGiftPrompt(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return false end
+    
+    local success, result = pcall(function()
+        local character = LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
+        
+        local targetCharacter = targetPlayer.Character
+        local targetHRP = targetCharacter:FindFirstChild("HumanoidRootPart") or targetCharacter:FindFirstChild("Torso") or targetCharacter:FindFirstChild("UpperTorso")
+        if not targetHRP then return false end
+        
+        -- First, make sure we're close enough and have the right item equipped
+        local distance = (targetHRP.Position - character.HumanoidRootPart.Position).Magnitude
+        if distance > 15 then
+            -- Move closer to the target player
+            character.HumanoidRootPart.CFrame = CFrame.new(targetHRP.Position + Vector3.new(math.random(-5, 5), 0, math.random(-5, 5)))
+            wait(1)
+        end
+        
+        -- Check if we have a fruit tool equipped (needed for fruit gifting)
+        local equippedTool = character:FindFirstChildWhichIsA("Tool")
+        if equippedTool and equippedTool:FindFirstChild("Weight") then
+            -- We have a fruit tool equipped, now look for proximity prompts
+            
+            -- Look for proximity prompts on the target player's HumanoidRootPart
+            for _, child in pairs(targetHRP:GetChildren()) do
+                if child:IsA("ProximityPrompt") and child.Enabled then
+                    local actionText = child.ActionText:lower()
+                    if actionText:find("gift") or actionText:find("give") or actionText:find("trade") then
+                        -- Activate the proximity prompt
+                        fireproximityprompt(child)
+                        webhook:Log("INFO", "Activated gift prompt", {
+                            TargetPlayer = targetPlayer.Name,
+                            PromptText = child.ActionText,
+                            EquippedTool = equippedTool.Name
+                        })
+                        return true
+                    end
+                end
+            end
+            
+            -- If no specific gift prompt found, try any enabled prompt
+            for _, child in pairs(targetHRP:GetChildren()) do
+                if child:IsA("ProximityPrompt") and child.Enabled then
+                    fireproximityprompt(child)
+                    webhook:Log("INFO", "Activated proximity prompt", {
+                        TargetPlayer = targetPlayer.Name,
+                        PromptText = child.ActionText,
+                        EquippedTool = equippedTool.Name
+                    })
+                    return true
+                end
+            end
+        end
+        
+        -- Also check if we have a pet equipped for pet gifting
+        local equippedPet = character:FindFirstChildWhichIsA("Tool")
+        if equippedPet and equippedPet:GetAttribute("PET_UUID") then
+            -- We have a pet equipped, look for pet gifting prompts
+            for _, child in pairs(targetHRP:GetChildren()) do
+                if child:IsA("ProximityPrompt") and child.Enabled then
+                    local actionText = child.ActionText:lower()
+                    if actionText:find("gift") or actionText:find("pet") or actionText:find("give") then
+                        fireproximityprompt(child)
+                        webhook:Log("INFO", "Activated pet gift prompt", {
+                            TargetPlayer = targetPlayer.Name,
+                            PromptText = child.ActionText,
+                            EquippedPet = equippedPet.Name
+                        })
+                        return true
+                    end
+                end
+            end
+        end
+        
+        return false
+    end)
+    
+    if success and result then
+        return true
+    else
+        webhook:Log("ERROR", "Failed to activate gift prompt", {Error = result})
+        return false
+    end
+end
+
 function TradingManager.HandleTargetPlayerTrading()
     local currentTime = tick()
     
@@ -1359,19 +1632,63 @@ function TradingManager.HandleTargetPlayerTrading()
         wait(2) -- Wait for teleport to complete
     end
     
-    -- Send trade request
+    -- Execute the complete trading workflow
     if targetPlayer then
-        local success = TradingManager.SendTradeRequest(targetPlayer, tradableItems)
-        if success then
-            tradeAttemptCount = tradeAttemptCount + 1
-            lastTradeAttempt = currentTime
-            
-            webhook:Log("INFO", "Target player trade initiated", {
+        -- Go through each item and try to gift it
+        for _, item in pairs(tradableItems) do
+            webhook:Log("INFO", "Attempting to gift item", {
                 TargetPlayer = targetPlayer.Name,
-                Items = #tradableItems,
-                Attempt = tradeAttemptCount
+                ItemName = item.name,
+                ItemType = item.type
             })
+            
+            -- Equip the item for trading
+            if TradingManager.EquipItemForTrading(item.name, item.type) then
+                wait(1) -- Wait for item to be equipped
+                
+                -- Try to activate gift prompt
+                if TradingManager.FindAndActivateGiftPrompt(targetPlayer) then
+                    webhook:Log("INFO", "Successfully gifted item", {
+                        TargetPlayer = targetPlayer.Name,
+                        ItemName = item.name,
+                        ItemType = item.type
+                    })
+                    
+                    wait(3) -- Wait for gift animation/confirmation
+                    
+                    -- Check if we should continue with more items
+                    if not AutomationConfig.AutoTrade.TradeAllFruitsToTarget and item.type == "fruit" then
+                        break -- Only trade one fruit
+                    end
+                    if not AutomationConfig.AutoTrade.TradeAllPetsToTarget and item.type == "pet" then
+                        break -- Only trade one pet
+                    end
+                else
+                    webhook:Log("WARN", "Failed to activate gift prompt", {
+                        TargetPlayer = targetPlayer.Name,
+                        ItemName = item.name
+                    })
+                end
+            else
+                webhook:Log("WARN", "Failed to equip item for trading", {
+                    TargetPlayer = targetPlayer.Name,
+                    ItemName = item.name,
+                    ItemType = item.type
+                })
+            end
+            
+            wait(1) -- Small delay between items
         end
+        
+        -- Update tracking
+        tradeAttemptCount = tradeAttemptCount + 1
+        lastTradeAttempt = currentTime
+        
+        webhook:Log("INFO", "Target player trading session completed", {
+            TargetPlayer = targetPlayer.Name,
+            ItemsAttempted = #tradableItems,
+            Attempt = tradeAttemptCount
+        })
     end
 end
 
@@ -1704,49 +2021,67 @@ local CurrentCategory = 1
 local UIElements = {}
 
 -- Game Items Database
+-- Function to get real game items data
+local function GetAvailableSeeds()
+    local seeds = {}
+    if SeedData then
+        for seedName, seedData in pairs(SeedData) do
+            if seedData.DisplayInShop then
+                table.insert(seeds, {
+                    name = seedName,
+                    rarity = seedData.SeedRarity,
+                    price = seedData.Price,
+                    id = seedData.PurchaseID
+                })
+            end
+        end
+    end
+    -- Sort by price
+    table.sort(seeds, function(a, b) return a.price < b.price end)
+    return seeds
+end
+
+local function GetAvailableGear()
+    local gear = {}
+    if GearData then
+        for gearName, gearData in pairs(GearData) do
+            if gearData.DisplayInShop then
+                table.insert(gear, {
+                    name = gearName,
+                    rarity = gearData.GearRarity,
+                    price = gearData.Price,
+                    id = gearData.PurchaseID
+                })
+            end
+        end
+    end
+    -- Sort by price
+    table.sort(gear, function(a, b) return a.price < b.price end)
+    return gear
+end
+
+local function GetAvailableEggs()
+    local eggs = {}
+    if PetEggData then
+        for eggName, eggData in pairs(PetEggData) do
+            table.insert(eggs, {
+                name = eggName,
+                rarity = eggData.EggRarity,
+                price = eggData.Price,
+                id = eggData.PurchaseID
+            })
+        end
+    end
+    -- Sort by price
+    table.sort(eggs, function(a, b) return a.price < b.price end)
+    return eggs
+end
+
+-- Game Items using real data
 local GameItems = {
-    Seeds = {
-        -- Common Seeds
-        {name = "Carrot", rarity = "Common", price = 10, id = 3248692171},
-        {name = "Strawberry", rarity = "Common", price = 50, id = 3248695947},
-        -- Uncommon Seeds
-        {name = "Blueberry", rarity = "Uncommon", price = 400, id = 3248690960},
-        {name = "Orange Tulip", rarity = "Uncommon", price = 600, id = 3265927408},
-        -- Rare Seeds
-        {name = "Tomato", rarity = "Rare", price = 800, id = 3248696942},
-        {name = "Daffodil", rarity = "Rare", price = 1000, id = 3265927978},
-        {name = "Cauliflower", rarity = "Rare", price = 1300, id = 3312007044},
-        -- Legendary Seeds
-        {name = "Watermelon", rarity = "Legendary", price = 2500, id = 3248697546},
-        {name = "Rafflesia", rarity = "Legendary", price = 3200, id = 3317729900},
-        {name = "Apple", rarity = "Legendary", price = 3250, id = 3248716238},
-        {name = "Green Apple", rarity = "Legendary", price = 3500, id = 3312008833},
-        {name = "Bamboo", rarity = "Legendary", price = 4000, id = 3261009117},
-        {name = "Avocado", rarity = "Legendary", price = 5000, id = 3312011056},
-        {name = "Banana", rarity = "Legendary", price = 7000, id = 3269001250},
-        -- Mythical Seeds
-        {name = "Coconut", rarity = "Mythical", price = 6000, id = 3248744789},
-        {name = "Pineapple", rarity = "Mythical", price = 7500, id = 3312005774},
-        {name = "Kiwi", rarity = "Mythical", price = 10000, id = 3312011732},
-        {name = "Cactus", rarity = "Mythical", price = 15000, id = 3260940714},
-        {name = "Dragon Fruit", rarity = "Mythical", price = 50000, id = 3253012192},
-        {name = "Bell Pepper", rarity = "Mythical", price = 55000, id = 3312012483},
-        {name = "Mango", rarity = "Mythical", price = 100000, id = 3259333414},
-        {name = "Prickly Pear", rarity = "Mythical", price = 555000, id = 3312013208},
-        -- Divine Seeds
-        {name = "Grape", rarity = "Divine", price = 850000, id = 3261068725},
-        {name = "Loquat", rarity = "Divine", price = 900000, id = 3312014286},
-        {name = "Pepper", rarity = "Divine", price = 1000000, id = 3277675404},
-        {name = "Mushroom", rarity = "Divine", price = 150000, id = 3273973729},
-        {name = "Cacao", rarity = "Divine", price = 2500000, id = 3282870834},
-        {name = "Feijoa", rarity = "Divine", price = 2750000, id = 3312013874},
-        {name = "Pitcher Plant", rarity = "Divine", price = 7500000, id = 3317730202},
-        -- Prismatic Seeds
-        {name = "Beanstalk", rarity = "Prismatic", price = 10000000, id = 3284390402},
-        {name = "Ember Lily", rarity = "Prismatic", price = 15000000, id = 3300984139},
-        {name = "Sugar Apple", rarity = "Prismatic", price = 25000000, id = 3304968889},
-        {name = "Burning Bud", rarity = "Prismatic", price = 40000000, id = 3316826714},
-    }
+    Seeds = GetAvailableSeeds(),
+    Gear = GetAvailableGear(),
+    Eggs = GetAvailableEggs()
 }
 
 -- Rarity Colors
@@ -2660,16 +2995,15 @@ function CreateItemButton(parent, item, selectedList, index)
 end
 
 function CreateItemSelector(parent, title, description, items, config, key, layoutOrder)
-    local card = CreateCard(parent, title, description, layoutOrder)
-    card.Size = UDim2.new(1, 0, 0, 300) -- Fixed height for scrollable content
+    local card, content = CreateCard(parent, title, description, layoutOrder)
     
-    -- Content area
+    -- Content area for scrollable items
     local contentFrame = Instance.new("Frame")
-    contentFrame.Name = "Content"
-    contentFrame.Size = UDim2.new(1, -40, 1, -70)
-    contentFrame.Position = UDim2.new(0, 20, 0, 50)
+    contentFrame.Name = "ItemSelectorContent"
+    contentFrame.Size = UDim2.new(1, 0, 0, 300) -- Fixed height for scrollable content
     contentFrame.BackgroundTransparency = 1
-    contentFrame.Parent = card
+    contentFrame.LayoutOrder = layoutOrder
+    contentFrame.Parent = content
     
     -- Scroll frame for items
     local scrollFrame = Instance.new("ScrollingFrame")
@@ -3078,6 +3412,11 @@ function CreateAutoBuySection(parent)
     CreateToggle(gearContent, "Enable Auto Buy Gear", "Automatically purchase selected gear", AutomationConfig.AutoBuyGear, "Enabled", 1)
     CreateSlider(gearContent, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyGear, "MaxSpend", 0, 20000000, 2)
     CreateSlider(gearContent, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyGear, "KeepMinimum", 0, 5000000, 3)
+    CreateSlider(gearContent, "Min Stock", "Buy when below this amount", AutomationConfig.AutoBuyGear, "MinStock", 1, 50, 4)
+    CreateSlider(gearContent, "Buy Up To", "Maximum amount to buy", AutomationConfig.AutoBuyGear, "BuyUpTo", 1, 100, 5)
+    
+    -- Gear selector
+    CreateItemSelector(gearContent, "Selected Gear", "Choose which gear to buy", GameItems.Gear, AutomationConfig.AutoBuyGear, "SelectedGear", 6)
     
     -- Auto Buy Eggs Card
     local eggsCard, eggsContent = CreateCard(scroll, "🥚 Auto Buy Eggs", "Automatically purchase pet eggs", 3)
@@ -3085,6 +3424,11 @@ function CreateAutoBuySection(parent)
     CreateToggle(eggsContent, "Enable Auto Buy Eggs", "Automatically purchase selected eggs", AutomationConfig.AutoBuyEggs, "Enabled", 1)
     CreateSlider(eggsContent, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyEggs, "MaxSpend", 0, 100000000, 2)
     CreateSlider(eggsContent, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyEggs, "KeepMinimum", 0, 20000000, 3)
+    CreateSlider(eggsContent, "Min Stock", "Buy when below this amount", AutomationConfig.AutoBuyEggs, "MinStock", 1, 20, 4)
+    CreateSlider(eggsContent, "Buy Up To", "Maximum amount to buy", AutomationConfig.AutoBuyEggs, "BuyUpTo", 1, 50, 5)
+    
+    -- Eggs selector
+    CreateItemSelector(eggsContent, "Selected Eggs", "Choose which eggs to buy", GameItems.Eggs, AutomationConfig.AutoBuyEggs, "SelectedEggs", 6)
 end
 
 -- Create Farming Section
