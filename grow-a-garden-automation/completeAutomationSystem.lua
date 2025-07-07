@@ -2180,7 +2180,7 @@ end
 function CreateCard(parent, title, description, layoutOrder)
     local card = Instance.new("Frame")
     card.Name = "Card_" .. title:gsub("[^%w]", "")
-    card.Size = UDim2.new(1, 0, 0, 100) -- Will be resized based on content
+    card.Size = UDim2.new(1, 0, 0, 100) -- Will be auto-resized based on content
     card.BackgroundColor3 = UIConfig.Colors.Surface
     card.BorderSizePixel = 0
     card.LayoutOrder = layoutOrder
@@ -2193,7 +2193,7 @@ function CreateCard(parent, title, description, layoutOrder)
     -- Header section
     local header = Instance.new("Frame")
     header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 50)
+    header.Size = UDim2.new(1, 0, 0, description and 60 or 40)
     header.Position = UDim2.new(0, 0, 0, 0)
     header.BackgroundTransparency = 1
     header.Parent = card
@@ -2226,7 +2226,27 @@ function CreateCard(parent, title, description, layoutOrder)
         descLabel.Parent = header
     end
     
-    return card
+    -- Content container with automatic layout
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, -40, 1, -(description and 80 or 60))
+    content.Position = UDim2.new(0, 20, 0, description and 70 or 50)
+    content.BackgroundTransparency = 1
+    content.Parent = card
+    
+    -- Layout for content
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 10)
+    layout.Parent = content
+    
+    -- Auto-resize card based on content
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        local totalHeight = (description and 80 or 60) + layout.AbsoluteContentSize.Y + 20
+        card.Size = UDim2.new(1, 0, 0, totalHeight)
+    end)
+    
+    return card, content
 end
 
 function CreateToggle(parent, name, description, config, key, layoutOrder)
@@ -2920,19 +2940,18 @@ function CreateDashboard(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Status Overview Card
-    local statusCard = CreateCard(scroll, "🚀 System Status", "Current automation status and overview", 1)
-    statusCard.Size = UDim2.new(1, 0, 0, 150)
+    local statusCard, statusContent = CreateCard(scroll, "🚀 System Status", "Current automation status and overview", 1)
     
     -- Master toggle
-    CreateToggle(statusCard, "Master Automation", "Enable/disable all automation features", AutomationConfig, "Enabled", 1)
+    CreateToggle(statusContent, "Master Automation", "Enable/disable all automation features", AutomationConfig, "Enabled", 1)
     
     -- Stats display
     local statsFrame = Instance.new("Frame")
     statsFrame.Name = "StatsFrame"
-    statsFrame.Size = UDim2.new(1, -40, 0, 60)
-    statsFrame.Position = UDim2.new(0, 20, 0, 70)
+    statsFrame.Size = UDim2.new(1, 0, 0, 60)
     statsFrame.BackgroundTransparency = 1
-    statsFrame.Parent = statusCard
+    statsFrame.LayoutOrder = 2
+    statsFrame.Parent = statusContent
     
     local statsLayout = Instance.new("UIGridLayout")
     statsLayout.CellSize = UDim2.new(0.33, -10, 1, 0)
@@ -2990,15 +3009,14 @@ function CreateDashboard(parent)
     end
     
     -- Quick Actions Card
-    local actionsCard = CreateCard(scroll, "⚡ Quick Actions", "Manual controls for immediate actions", 2)
-    actionsCard.Size = UDim2.new(1, 0, 0, 120)
+    local actionsCard, actionsContent = CreateCard(scroll, "⚡ Quick Actions", "Manual controls for immediate actions", 2)
     
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Name = "ActionsFrame"
-    actionsFrame.Size = UDim2.new(1, -40, 0, 60)
-    actionsFrame.Position = UDim2.new(0, 20, 0, 50)
+    actionsFrame.Size = UDim2.new(1, 0, 0, 60)
+    actionsFrame.LayoutOrder = 1
     actionsFrame.BackgroundTransparency = 1
-    actionsFrame.Parent = actionsCard
+    actionsFrame.Parent = actionsContent
     
     local actionsLayout = Instance.new("UIGridLayout")
     actionsLayout.CellSize = UDim2.new(0.25, -10, 1, 0)
@@ -3043,33 +3061,30 @@ function CreateAutoBuySection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Auto Buy Seeds Card
-    local seedsCard = CreateCard(scroll, "🌱 Auto Buy Seeds", "Automatically purchase seeds when stock is low", 1)
-    seedsCard.Size = UDim2.new(1, 0, 0, 400)
+    local seedsCard, seedsContent = CreateCard(scroll, "🌱 Auto Buy Seeds", "Automatically purchase seeds when stock is low", 1)
     
-    CreateToggle(seedsCard, "Enable Auto Buy Seeds", "Automatically purchase selected seeds", AutomationConfig.AutoBuySeeds, "Enabled", 1)
-    CreateSlider(seedsCard, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuySeeds, "MaxSpend", 0, 50000000, 2)
-    CreateSlider(seedsCard, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuySeeds, "KeepMinimum", 0, 10000000, 3)
-    CreateSlider(seedsCard, "Min Stock", "Buy when below this amount", AutomationConfig.AutoBuySeeds, "MinStock", 1, 100, 4)
-    CreateSlider(seedsCard, "Buy Up To", "Maximum amount to buy", AutomationConfig.AutoBuySeeds, "BuyUpTo", 1, 200, 5)
+    CreateToggle(seedsContent, "Enable Auto Buy Seeds", "Automatically purchase selected seeds", AutomationConfig.AutoBuySeeds, "Enabled", 1)
+    CreateSlider(seedsContent, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuySeeds, "MaxSpend", 0, 50000000, 2)
+    CreateSlider(seedsContent, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuySeeds, "KeepMinimum", 0, 10000000, 3)
+    CreateSlider(seedsContent, "Min Stock", "Buy when below this amount", AutomationConfig.AutoBuySeeds, "MinStock", 1, 100, 4)
+    CreateSlider(seedsContent, "Buy Up To", "Maximum amount to buy", AutomationConfig.AutoBuySeeds, "BuyUpTo", 1, 200, 5)
     
     -- Seed selector
-    CreateItemSelector(seedsCard, "Selected Seeds", "Choose which seeds to buy", GameItems.Seeds, AutomationConfig.AutoBuySeeds, "SelectedSeeds", 6)
+    CreateItemSelector(seedsContent, "Selected Seeds", "Choose which seeds to buy", GameItems.Seeds, AutomationConfig.AutoBuySeeds, "SelectedSeeds", 6)
     
     -- Auto Buy Gear Card
-    local gearCard = CreateCard(scroll, "⚒️ Auto Buy Gear", "Automatically purchase tools and gear", 2)
-    gearCard.Size = UDim2.new(1, 0, 0, 300)
+    local gearCard, gearContent = CreateCard(scroll, "⚒️ Auto Buy Gear", "Automatically purchase tools and gear", 2)
     
-    CreateToggle(gearCard, "Enable Auto Buy Gear", "Automatically purchase selected gear", AutomationConfig.AutoBuyGear, "Enabled", 1)
-    CreateSlider(gearCard, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyGear, "MaxSpend", 0, 20000000, 2)
-    CreateSlider(gearCard, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyGear, "KeepMinimum", 0, 5000000, 3)
+    CreateToggle(gearContent, "Enable Auto Buy Gear", "Automatically purchase selected gear", AutomationConfig.AutoBuyGear, "Enabled", 1)
+    CreateSlider(gearContent, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyGear, "MaxSpend", 0, 20000000, 2)
+    CreateSlider(gearContent, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyGear, "KeepMinimum", 0, 5000000, 3)
     
     -- Auto Buy Eggs Card
-    local eggsCard = CreateCard(scroll, "🥚 Auto Buy Eggs", "Automatically purchase pet eggs", 3)
-    eggsCard.Size = UDim2.new(1, 0, 0, 300)
+    local eggsCard, eggsContent = CreateCard(scroll, "🥚 Auto Buy Eggs", "Automatically purchase pet eggs", 3)
     
-    CreateToggle(eggsCard, "Enable Auto Buy Eggs", "Automatically purchase selected eggs", AutomationConfig.AutoBuyEggs, "Enabled", 1)
-    CreateSlider(eggsCard, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyEggs, "MaxSpend", 0, 100000000, 2)
-    CreateSlider(eggsCard, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyEggs, "KeepMinimum", 0, 20000000, 3)
+    CreateToggle(eggsContent, "Enable Auto Buy Eggs", "Automatically purchase selected eggs", AutomationConfig.AutoBuyEggs, "Enabled", 1)
+    CreateSlider(eggsContent, "Max Spend", "Maximum sheckles to spend", AutomationConfig.AutoBuyEggs, "MaxSpend", 0, 100000000, 2)
+    CreateSlider(eggsContent, "Keep Minimum", "Always keep this amount", AutomationConfig.AutoBuyEggs, "KeepMinimum", 0, 20000000, 3)
 end
 
 -- Create Farming Section
@@ -3077,26 +3092,24 @@ function CreateFarmingSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Auto Plant Card
-    local plantCard = CreateCard(scroll, "🌱 Auto Plant", "Automatically plant seeds in available spots", 1)
-    plantCard.Size = UDim2.new(1, 0, 0, 350)
+    local plantCard, plantContent = CreateCard(scroll, "🌱 Auto Plant", "Automatically plant seeds in available spots", 1)
     
-    CreateToggle(plantCard, "Enable Auto Plant", "Automatically plant selected seeds", AutomationConfig.AutoPlant, "Enabled", 1)
-    CreateToggle(plantCard, "Use Watering Can", "Use watering can after planting", AutomationConfig.AutoPlant, "UseWateringCan", 2)
-    CreateToggle(plantCard, "Only Plant Selected", "Only plant seeds from selected list", AutomationConfig.AutoPlant, "OnlyPlantSelected", 3)
-    CreateSlider(plantCard, "Plant Interval", "Seconds between planting", AutomationConfig.AutoPlant, "PlantInterval", 1, 10, 4)
-    CreateSlider(plantCard, "Max Plants Per Type", "Maximum plants of each type", AutomationConfig.AutoPlant, "MaxPlantsPerType", 1, 100, 5)
+    CreateToggle(plantContent, "Enable Auto Plant", "Automatically plant selected seeds", AutomationConfig.AutoPlant, "Enabled", 1)
+    CreateToggle(plantContent, "Use Watering Can", "Use watering can after planting", AutomationConfig.AutoPlant, "UseWateringCan", 2)
+    CreateToggle(plantContent, "Only Plant Selected", "Only plant seeds from selected list", AutomationConfig.AutoPlant, "OnlyPlantSelected", 3)
+    CreateSlider(plantContent, "Plant Interval", "Seconds between planting", AutomationConfig.AutoPlant, "PlantInterval", 1, 10, 4)
+    CreateSlider(plantContent, "Max Plants Per Type", "Maximum plants of each type", AutomationConfig.AutoPlant, "MaxPlantsPerType", 1, 100, 5)
     
     -- Seed selector for planting
-    CreateItemSelector(plantCard, "Seeds to Plant", "Choose which seeds to plant", GameItems.Seeds, AutomationConfig.AutoPlant, "SelectedSeeds", 6)
+    CreateItemSelector(plantContent, "Seeds to Plant", "Choose which seeds to plant", GameItems.Seeds, AutomationConfig.AutoPlant, "SelectedSeeds", 6)
     
     -- Auto Collect Card
-    local collectCard = CreateCard(scroll, "🌾 Auto Collect", "Automatically collect grown plants", 2)
-    collectCard.Size = UDim2.new(1, 0, 0, 200)
+    local collectCard, collectContent = CreateCard(scroll, "🌾 Auto Collect", "Automatically collect grown plants", 2)
     
-    CreateToggle(collectCard, "Enable Auto Collect", "Automatically collect grown plants", AutomationConfig.AutoCollect, "Enabled", 1)
-    CreateToggle(collectCard, "Prioritize Rare Items", "Collect rare items first", AutomationConfig.AutoCollect, "PrioritizeRareItems", 2)
-    CreateSlider(collectCard, "Collect Interval", "Seconds between collections", AutomationConfig.AutoCollect, "CollectInterval", 0.5, 5, 3)
-    CreateSlider(collectCard, "Collect Radius", "Collection radius in studs", AutomationConfig.AutoCollect, "CollectRadius", 50, 500, 4)
+    CreateToggle(collectContent, "Enable Auto Collect", "Automatically collect grown plants", AutomationConfig.AutoCollect, "Enabled", 1)
+    CreateToggle(collectContent, "Prioritize Rare Items", "Collect rare items first", AutomationConfig.AutoCollect, "PrioritizeRareItems", 2)
+    CreateSlider(collectContent, "Collect Interval", "Seconds between collections", AutomationConfig.AutoCollect, "CollectInterval", 0.5, 5, 3)
+    CreateSlider(collectContent, "Collect Radius", "Collection radius in studs", AutomationConfig.AutoCollect, "CollectRadius", 50, 500, 4)
 end
 
 -- Create Pet Section
@@ -3104,16 +3117,15 @@ function CreatePetSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Pet Management Card
-    local petCard = CreateCard(scroll, "🐕 Pet Management", "Automatically manage your pets", 1)
-    petCard.Size = UDim2.new(1, 0, 0, 300)
+    local petCard, petContent = CreateCard(scroll, "🐕 Pet Management", "Automatically manage your pets", 1)
     
-    CreateToggle(petCard, "Enable Pet Management", "Automatically manage pets", AutomationConfig.PetManagement, "Enabled", 1)
-    CreateToggle(petCard, "Auto Equip Best", "Automatically equip best pets", AutomationConfig.PetManagement, "EquipBestPets", 2)
-    CreateToggle(petCard, "Auto Feed", "Automatically feed pets", AutomationConfig.PetManagement, "AutoFeed", 3)
-    CreateToggle(petCard, "Auto Hatch Eggs", "Automatically hatch eggs", AutomationConfig.PetManagement, "AutoHatchEggs", 4)
-    CreateToggle(petCard, "Feed All Pets", "Feed all pets or only equipped", AutomationConfig.PetManagement, "FeedAllPets", 5)
-    CreateSlider(petCard, "Pet Equip Slots", "Number of pets to equip", AutomationConfig.PetManagement, "PetEquipSlots", 1, 10, 6)
-    CreateSlider(petCard, "Feed Threshold", "Feed pets below this hunger level", AutomationConfig.PetManagement, "FeedThreshold", 0, 1000, 7)
+    CreateToggle(petContent, "Enable Pet Management", "Automatically manage pets", AutomationConfig.PetManagement, "Enabled", 1)
+    CreateToggle(petContent, "Auto Equip Best", "Automatically equip best pets", AutomationConfig.PetManagement, "EquipBestPets", 2)
+    CreateToggle(petContent, "Auto Feed", "Automatically feed pets", AutomationConfig.PetManagement, "AutoFeed", 3)
+    CreateToggle(petContent, "Auto Hatch Eggs", "Automatically hatch eggs", AutomationConfig.PetManagement, "AutoHatchEggs", 4)
+    CreateToggle(petContent, "Feed All Pets", "Feed all pets or only equipped", AutomationConfig.PetManagement, "FeedAllPets", 5)
+    CreateSlider(petContent, "Pet Equip Slots", "Number of pets to equip", AutomationConfig.PetManagement, "PetEquipSlots", 1, 10, 6)
+    CreateSlider(petContent, "Feed Threshold", "Feed pets below this hunger level", AutomationConfig.PetManagement, "FeedThreshold", 0, 1000, 7)
 end
 
 -- Create Events Section
@@ -3121,14 +3133,13 @@ function CreateEventsSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Events Card
-    local eventsCard = CreateCard(scroll, "🎉 Events & Quests", "Automatically handle events and quests", 1)
-    eventsCard.Size = UDim2.new(1, 0, 0, 250)
+    local eventsCard, eventsContent = CreateCard(scroll, "🎉 Events & Quests", "Automatically handle events and quests", 1)
     
-    CreateToggle(eventsCard, "Enable Auto Events", "Automatically handle events", AutomationConfig.AutoEvents, "Enabled", 1)
-    CreateToggle(eventsCard, "Daily Quests", "Complete daily quests", AutomationConfig.AutoEvents, "DailyQuests", 2)
-    CreateToggle(eventsCard, "Summer Harvest", "Participate in summer harvest", AutomationConfig.AutoEvents, "SummerHarvest", 3)
-    CreateToggle(eventsCard, "Blood Moon", "Handle blood moon events", AutomationConfig.AutoEvents, "BloodMoon", 4)
-    CreateToggle(eventsCard, "Auto Claim", "Automatically claim rewards", AutomationConfig.AutoEvents, "AutoClaim", 5)
+    CreateToggle(eventsContent, "Enable Auto Events", "Automatically handle events", AutomationConfig.AutoEvents, "Enabled", 1)
+    CreateToggle(eventsContent, "Daily Quests", "Complete daily quests", AutomationConfig.AutoEvents, "DailyQuests", 2)
+    CreateToggle(eventsContent, "Summer Harvest", "Participate in summer harvest", AutomationConfig.AutoEvents, "SummerHarvest", 3)
+    CreateToggle(eventsContent, "Blood Moon", "Handle blood moon events", AutomationConfig.AutoEvents, "BloodMoon", 4)
+    CreateToggle(eventsContent, "Auto Claim", "Automatically claim rewards", AutomationConfig.AutoEvents, "AutoClaim", 5)
 end
 
 -- Create Trading Section
@@ -3136,18 +3147,17 @@ function CreateTradingSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Trading Card
-    local tradingCard = CreateCard(scroll, "🤝 Trading System", "Automated trading features", 1)
-    tradingCard.Size = UDim2.new(1, 0, 0, 400)
+    local tradingCard, tradingContent = CreateCard(scroll, "🤝 Trading System", "Automated trading features", 1)
     
-    CreateToggle(tradingCard, "Enable Auto Trading", "Enable automated trading", AutomationConfig.AutoTrade, "Enabled", 1)
-    CreateToggle(tradingCard, "Auto Accept Trades", "Automatically accept incoming trades", AutomationConfig.AutoTrade, "AutoAcceptTrades", 2)
-    CreateToggle(tradingCard, "Target Player Trading", "Trade with specific player", AutomationConfig.AutoTrade, "TargetPlayerEnabled", 3)
-    CreateToggle(tradingCard, "Trade All Fruits", "Trade all fruits to target", AutomationConfig.AutoTrade, "TradeAllFruitsToTarget", 4)
-    CreateToggle(tradingCard, "Trade All Pets", "Trade all pets to target", AutomationConfig.AutoTrade, "TradeAllPetsToTarget", 5)
+    CreateToggle(tradingContent, "Enable Auto Trading", "Enable automated trading", AutomationConfig.AutoTrade, "Enabled", 1)
+    CreateToggle(tradingContent, "Auto Accept Trades", "Automatically accept incoming trades", AutomationConfig.AutoTrade, "AutoAcceptTrades", 2)
+    CreateToggle(tradingContent, "Target Player Trading", "Trade with specific player", AutomationConfig.AutoTrade, "TargetPlayerEnabled", 3)
+    CreateToggle(tradingContent, "Trade All Fruits", "Trade all fruits to target", AutomationConfig.AutoTrade, "TradeAllFruitsToTarget", 4)
+    CreateToggle(tradingContent, "Trade All Pets", "Trade all pets to target", AutomationConfig.AutoTrade, "TradeAllPetsToTarget", 5)
     
-    CreateTextBox(tradingCard, "Target Player Name", "Name of player to trade with", AutomationConfig.AutoTrade, "TargetPlayerName", 6)
-    CreateSlider(tradingCard, "Request Interval", "Seconds between trade requests", AutomationConfig.AutoTrade, "RequestInterval", 10, 300, 7)
-    CreateSlider(tradingCard, "Max Attempts", "Maximum trade attempts per session", AutomationConfig.AutoTrade, "MaxRequestAttempts", 1, 50, 8)
+    CreateTextBox(tradingContent, "Target Player Name", "Name of player to trade with", AutomationConfig.AutoTrade, "TargetPlayerName", 6)
+    CreateSlider(tradingContent, "Request Interval", "Seconds between trade requests", AutomationConfig.AutoTrade, "RequestInterval", 10, 300, 7)
+    CreateSlider(tradingContent, "Max Attempts", "Maximum trade attempts per session", AutomationConfig.AutoTrade, "MaxRequestAttempts", 1, 50, 8)
 end
 
 -- Create Misc Section
@@ -3155,13 +3165,12 @@ function CreateMiscSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Misc Features Card
-    local miscCard = CreateCard(scroll, "⚙️ Miscellaneous Features", "Additional automation features", 1)
-    miscCard.Size = UDim2.new(1, 0, 0, 200)
+    local miscCard, miscContent = CreateCard(scroll, "⚙️ Miscellaneous Features", "Additional automation features", 1)
     
-    CreateToggle(miscCard, "Auto Open Packs", "Automatically open seed packs", AutomationConfig.MiscFeatures, "AutoOpenPacks", 1)
-    CreateToggle(miscCard, "Auto Use Gear", "Automatically use gear when needed", AutomationConfig.MiscFeatures, "AutoUseGear", 2)
-    CreateToggle(miscCard, "Auto Teleport", "Enable teleportation features", AutomationConfig.MiscFeatures, "AutoTeleport", 3)
-    CreateSlider(miscCard, "Pack Open Interval", "Seconds between pack openings", AutomationConfig.MiscFeatures, "PackOpenInterval", 1, 30, 4)
+    CreateToggle(miscContent, "Auto Open Packs", "Automatically open seed packs", AutomationConfig.MiscFeatures, "AutoOpenPacks", 1)
+    CreateToggle(miscContent, "Auto Use Gear", "Automatically use gear when needed", AutomationConfig.MiscFeatures, "AutoUseGear", 2)
+    CreateToggle(miscContent, "Auto Teleport", "Enable teleportation features", AutomationConfig.MiscFeatures, "AutoTeleport", 3)
+    CreateSlider(miscContent, "Pack Open Interval", "Seconds between pack openings", AutomationConfig.MiscFeatures, "PackOpenInterval", 1, 30, 4)
 end
 
 -- Create Performance Section
@@ -3169,14 +3178,13 @@ function CreatePerformanceSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Performance Card
-    local perfCard = CreateCard(scroll, "⚡ Performance Settings", "Optimize game performance", 1)
-    perfCard.Size = UDim2.new(1, 0, 0, 200)
+    local perfCard, perfContent = CreateCard(scroll, "⚡ Performance Settings", "Optimize game performance", 1)
     
-    CreateToggle(perfCard, "Reduce Graphics", "Lower graphics quality for better performance", AutomationConfig.Performance, "ReduceGraphics", 1)
-    CreateToggle(perfCard, "Disable Animations", "Disable animations to improve FPS", AutomationConfig.Performance, "DisableAnimations", 2)
-    CreateToggle(perfCard, "Disable Particles", "Disable particle effects", AutomationConfig.Performance, "DisableParticles", 3)
-    CreateToggle(perfCard, "Low Memory Mode", "Optimize for low memory usage", AutomationConfig.Performance, "LowMemoryMode", 4)
-    CreateSlider(perfCard, "Max FPS", "Maximum frames per second", AutomationConfig.Performance, "MaxFPS", 30, 144, 5)
+    CreateToggle(perfContent, "Reduce Graphics", "Lower graphics quality for better performance", AutomationConfig.Performance, "ReduceGraphics", 1)
+    CreateToggle(perfContent, "Disable Animations", "Disable animations to improve FPS", AutomationConfig.Performance, "DisableAnimations", 2)
+    CreateToggle(perfContent, "Disable Particles", "Disable particle effects", AutomationConfig.Performance, "DisableParticles", 3)
+    CreateToggle(perfContent, "Low Memory Mode", "Optimize for low memory usage", AutomationConfig.Performance, "LowMemoryMode", 4)
+    CreateSlider(perfContent, "Max FPS", "Maximum frames per second", AutomationConfig.Performance, "MaxFPS", 30, 144, 5)
 end
 
 -- Create Settings Section
@@ -3184,11 +3192,10 @@ function CreateSettingsSection(parent)
     local scroll = CreateScrollFrame(parent)
     
     -- Webhook Settings Card
-    local webhookCard = CreateCard(scroll, "🔧 Webhook Settings", "Configure Discord webhook notifications", 1)
-    webhookCard.Size = UDim2.new(1, 0, 0, 150)
+    local webhookCard, webhookContent = CreateCard(scroll, "🔧 Webhook Settings", "Configure Discord webhook notifications", 1)
     
-    CreateTextBox(webhookCard, "Webhook URL", "Discord webhook URL for notifications", AutomationConfig, "WebhookURL", 1)
-    CreateTextBox(webhookCard, "Log Level", "Logging level (INFO, WARN, ERROR)", AutomationConfig, "LogLevel", 2)
+    CreateTextBox(webhookContent, "Webhook URL", "Discord webhook URL for notifications", AutomationConfig, "WebhookURL", 1)
+    CreateTextBox(webhookContent, "Log Level", "Logging level (INFO, WARN, ERROR)", AutomationConfig, "LogLevel", 2)
 end
 
 -- Initialize UI after backend is ready
