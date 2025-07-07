@@ -2427,6 +2427,36 @@ function CreateHeader(parent)
     UIElements.MainStatusText = statusText
 end
 
+-- Update Dashboard Stats
+local function UpdateDashboardStats()
+    -- Update Sheckles
+    if UIElements.ShecklesValue then
+        local sheckles = DataManager.GetSheckles() or 0
+        UIElements.ShecklesValue.Text = FormatNumber(sheckles)
+    end
+    
+    -- Update Plants count
+    if UIElements.PlantsValue then
+        local plantedObjects = DataManager.GetPlantedObjects() or {}
+        local plantCount = 0
+        for _ in pairs(plantedObjects) do
+            plantCount = plantCount + 1
+        end
+        UIElements.PlantsValue.Text = FormatNumber(plantCount)
+    end
+    
+    -- Update Pets count
+    if UIElements.PetsValue then
+        local petData = DataManager.GetPetData() or {}
+        local petInventory = petData.PetInventory and petData.PetInventory.Data or {}
+        local petCount = 0
+        for _ in pairs(petInventory) do
+            petCount = petCount + 1
+        end
+        UIElements.PetsValue.Text = FormatNumber(petCount)
+    end
+end
+
 -- Update status display
 local function UpdateUIStatus()
     if UIElements.UpdateStatus then
@@ -2438,6 +2468,9 @@ local function UpdateUIStatus()
         UIElements.MainStatusText.Text = AutomationConfig.Enabled and "Active" or "Disabled"
         UIElements.MainStatusText.TextColor3 = AutomationConfig.Enabled and UIConfig.Colors.Success or UIConfig.Colors.TextSecondary
     end
+    
+    -- Update Dashboard stats
+    UpdateDashboardStats()
 end
 
 -- Current Category State
@@ -2710,6 +2743,25 @@ function CreateToggle(parent, name, description, config, key, layoutOrder)
     button.MouseButton1Click:Connect(function()
         config[key] = not config[key]
         
+        -- Sync with global config (handle nested configs)
+        if _G.AutomationSystem and _G.AutomationSystem.Config then
+            if config == AutomationConfig then
+                -- Top-level config
+                _G.AutomationSystem.Config[key] = config[key]
+            else
+                -- Nested config - find parent and sync
+                for parentKey, parentValue in pairs(AutomationConfig) do
+                    if parentValue == config then
+                        if not _G.AutomationSystem.Config[parentKey] then
+                            _G.AutomationSystem.Config[parentKey] = {}
+                        end
+                        _G.AutomationSystem.Config[parentKey][key] = config[key]
+                        break
+                    end
+                end
+            end
+        end
+        
         -- Animate switch
         local targetPos = config[key] and UDim2.new(1, -23, 0, 2) or UDim2.new(0, 2, 0, 2)
         local targetColor = config[key] and UIConfig.Colors.Success or UIConfig.Colors.SurfaceHover
@@ -2722,6 +2774,9 @@ function CreateToggle(parent, name, description, config, key, layoutOrder)
             Setting = name,
             Value = config[key]
         })
+        
+        -- Debug output
+        print("🔄 Toggle:", name, "=", config[key])
     end)
     
     return frame
@@ -2823,6 +2878,26 @@ function CreateSlider(parent, name, description, config, key, minValue, maxValue
         local value = math.floor(minValue + percentage * (maxValue - minValue))
         
         config[key] = value
+        
+        -- Sync with global config (handle nested configs)
+        if _G.AutomationSystem and _G.AutomationSystem.Config then
+            if config == AutomationConfig then
+                -- Top-level config
+                _G.AutomationSystem.Config[key] = value
+            else
+                -- Nested config - find parent and sync
+                for parentKey, parentValue in pairs(AutomationConfig) do
+                    if parentValue == config then
+                        if not _G.AutomationSystem.Config[parentKey] then
+                            _G.AutomationSystem.Config[parentKey] = {}
+                        end
+                        _G.AutomationSystem.Config[parentKey][key] = value
+                        break
+                    end
+                end
+            end
+        end
+        
         valueLabel.Text = FormatNumber(value)
         
         fill.Size = UDim2.new(percentage, 0, 1, 0)
@@ -3344,9 +3419,9 @@ function CreateDashboard(parent)
     
     -- Create stat items
     local stats = {
-        {name = "Sheckles", value = "0", icon = "💰"},
-        {name = "Plants", value = "0", icon = "🌱"},
-        {name = "Pets", value = "0", icon = "🐕"}
+        {name = "Sheckles", value = "0", icon = "💰", key = "ShecklesValue"},
+        {name = "Plants", value = "0", icon = "🌱", key = "PlantsValue"},
+        {name = "Pets", value = "0", icon = "🐕", key = "PetsValue"}
     }
     
     for i, stat in ipairs(stats) do
@@ -3390,6 +3465,9 @@ function CreateDashboard(parent)
         statValue.Font = UIConfig.Fonts.Mono
         statValue.TextXAlignment = Enum.TextXAlignment.Left
         statValue.Parent = statFrame
+        
+        -- Store reference for updates
+        UIElements[stat.key] = statValue
     end
     
     -- Quick Actions Card
