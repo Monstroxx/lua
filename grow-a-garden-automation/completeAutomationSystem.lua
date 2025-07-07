@@ -33,15 +33,7 @@ local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
 local PetEggData = require(ReplicatedStorage.Data.PetEggData)
 local SeedPackData = require(ReplicatedStorage.Data.SeedPackData)
 
--- Import the UI (HTTP Request Method)
-local AdvancedUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
-
--- Global automation state (shared between UI and backend)
-_G.AutomationSystem = _G.AutomationSystem or {}
-_G.AutomationSystem.Config = AutomationConfig
-_G.AutomationSystem.Functions = {}
-
--- Automation Configuration (synced with UI)
+-- Automation Configuration (MUST BE DEFINED FIRST!)
 local AutomationConfig = {
     -- Master Settings
     Enabled = false,
@@ -177,6 +169,16 @@ local AutomationConfig = {
         DisableParticles = false,
     },
 }
+
+-- Initialize global automation state IMMEDIATELY after config definition
+_G.AutomationSystem = _G.AutomationSystem or {}
+_G.AutomationSystem.Config = AutomationConfig
+_G.AutomationSystem.Functions = {}
+
+print("✅ AutomationConfig initialized and stored in _G.AutomationSystem.Config")
+
+-- Import the UI (HTTP Request Method) AFTER config is ready
+local AdvancedUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
 
 -- Webhook System
 local WebhookManager = {}

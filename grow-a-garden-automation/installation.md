@@ -2,9 +2,19 @@
 
 ## Quick Start (Recommended)
 
-**Load the complete system with one command:**
+**Option 1 - Full System (Recommended):**
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/mainLoader.lua"))()
+```
+
+**Option 2 - Simple Loader (If Option 1 has timing issues):**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/simpleLoader.lua"))()
+```
+
+**Option 3 - Debug First (For troubleshooting):**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/debugScript.lua"))()
 ```
 
 This will automatically load:
@@ -116,22 +126,27 @@ The system includes comprehensive configuration options:
 
 ### Common Issues:
 
-1. **"Backend not loading"**
+1. **"Backend initialization timed out - Config not available"** ✅ FIXED
+   - **Solution**: Use simpleLoader.lua instead of mainLoader.lua
+   - **Root cause**: Timing issue between components fixed in backend
+   - **Alternative**: Run debugScript.lua first, then mainLoader.lua
+
+2. **"Backend not loading"**
    - Check internet connection
    - Verify executor supports HttpGet
-   - Try reloading the script
+   - Try simpleLoader.lua for better error handling
 
-2. **"UI not responding"**
-   - Use `/autostatus` to check connection
-   - Reload with mainLoader.lua
-   - Check console for errors
+3. **"UI not responding"**
+   - Use `/status` to check connection
+   - Try simpleLoader.lua for minimal setup
+   - Check console for specific error messages
 
-3. **"Automation not working"**
+4. **"Automation not working"**
    - Verify you're in Grow a Garden game
-   - Check if automation is enabled (`/autostart`)
-   - Use manual commands to test functions
+   - Use `/start` to enable automation
+   - Use `/status` to check current state
 
-4. **"Trading not working"**
+5. **"Trading not working"**
    - Make sure target player is online
    - Check if you have items to trade
    - Verify trading is enabled in settings

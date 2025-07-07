@@ -47,18 +47,41 @@ while (not _G.AutomationSystem.Functions or not _G.AutomationSystem.Config) and 
     
     if attempts % 20 == 0 then
         print("⏳ Waiting for backend initialization... Attempt", attempts)
+        print("   Functions available:", _G.AutomationSystem.Functions ~= nil)
+        print("   Config available:", _G.AutomationSystem.Config ~= nil)
+        
+        if _G.AutomationSystem.Config then
+            print("   Config type:", type(_G.AutomationSystem.Config))
+            print("   Config has AutoPlant:", _G.AutomationSystem.Config.AutoPlant ~= nil)
+        end
     end
 end
 
 if not _G.AutomationSystem.Functions then
     warn("❌ Backend initialization timed out - Functions not available")
-    print("Debug: _G.AutomationSystem =", _G.AutomationSystem)
+    print("Debug: _G.AutomationSystem contents:")
+    for key, value in pairs(_G.AutomationSystem or {}) do
+        print("  ", key, "=", type(value))
+    end
     return
 end
 
 if not _G.AutomationSystem.Config then
     warn("❌ Backend initialization timed out - Config not available")
-    print("Debug: _G.AutomationSystem =", _G.AutomationSystem)
+    print("Debug: _G.AutomationSystem contents:")
+    for key, value in pairs(_G.AutomationSystem or {}) do
+        print("  ", key, "=", type(value))
+    end
+    return
+end
+
+-- Verify config structure
+if not _G.AutomationSystem.Config.AutoPlant then
+    warn("❌ Config structure invalid - AutoPlant missing")
+    print("Config keys available:")
+    for key, value in pairs(_G.AutomationSystem.Config or {}) do
+        print("  ", key, "=", type(value))
+    end
     return
 end
 
