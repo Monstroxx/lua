@@ -615,10 +615,15 @@ function ShopManager.NavigateToSeedShop()
 end
 
 function ShopManager.BuySeeds()
-    if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then 
+        print("❌ BuySeeds: Not enabled or config missing")
+        return 
+    end
     
+    print("🌱 BuySeeds: Starting seed purchase check...")
     local backpack = DataManager.GetBackpack()
     local sheckles = DataManager.GetSheckles()
+    print("💰 Current Sheckles:", sheckles)
     
     if sheckles < (AutomationConfig.AutoBuySeeds.KeepMinimum or 100000) then
         webhook:Log("WARN", "Not enough money to buy seeds safely")
@@ -651,6 +656,8 @@ function ShopManager.BuySeeds()
                                     type = 1, -- Seeds type
                                     id = seedInfo.PurchaseID
                                 })
+                            else
+                                error("Remotes.Market.PromptPurchase not available")
                             end
                         end)
                         
@@ -675,10 +682,15 @@ end
 
 -- not working maby check first what gear are in stock
 function ShopManager.BuyGear()
-    if not AutomationConfig or not AutomationConfig.AutoBuyGear or not AutomationConfig.AutoBuyGear.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuyGear or not AutomationConfig.AutoBuyGear.Enabled then 
+        print("❌ BuyGear: Not enabled or config missing")
+        return 
+    end
     
+    print("🔧 BuyGear: Starting gear purchase check...")
     local backpack = DataManager.GetBackpack()
     local sheckles = DataManager.GetSheckles()
+    print("💰 Current Sheckles:", sheckles)
     
     if sheckles < AutomationConfig.AutoBuyGear.KeepMinimum then return end
     
@@ -686,13 +698,15 @@ function ShopManager.BuyGear()
         local currentStock = backpack[gearType] or 0
         
         if currentStock < AutomationConfig.AutoBuyGear.MinStock then
-            -- Find gear info from our GameItems.Gear
+            -- Find gear info from real game GearData
             local gearInfo = nil
-            for _, gear in ipairs(GameItems.Gear) do
-                if gear.name == gearType then
-                    gearInfo = gear
-                    break
-                end
+            if GearData and GearData[gearType] then
+                local gearData = GearData[gearType]
+                gearInfo = {
+                    name = gearType,
+                    price = gearData.Price,
+                    id = gearData.PurchaseID
+                }
             end
             
             if gearInfo and sheckles >= gearInfo.price + AutomationConfig.AutoBuyGear.KeepMinimum then
@@ -708,6 +722,8 @@ function ShopManager.BuyGear()
                                     type = 2, -- Gear type
                                     id = gearInfo.id
                                 })
+                            else
+                                error("Remotes.Market.PromptPurchase not available")
                             end
                         end)
                         
@@ -732,39 +748,60 @@ end
 
 -- not working maby check first what egg are in stock
 function ShopManager.BuyEggs()
-    if not AutomationConfig or not AutomationConfig.AutoBuyEggs or not AutomationConfig.AutoBuyEggs.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuyEggs or not AutomationConfig.AutoBuyEggs.Enabled then 
+        print("❌ BuyEggs: Not enabled or config missing")
+        return 
+    end
     
+    print("🥚 BuyEggs: Starting egg purchase check...")
     local sheckles = DataManager.GetSheckles()
+    print("💰 Current Sheckles:", sheckles)
     
     if sheckles < AutomationConfig.AutoBuyEggs.KeepMinimum then return end
     
     for _, eggType in pairs(AutomationConfig.AutoBuyEggs.SelectedEggs) do
-        -- Find egg info from our GameItems.Eggs
+        -- Find egg info from real game PetEggData
         local eggInfo = nil
-        for _, egg in ipairs(GameItems.Eggs) do
-            if egg.name == eggType then
-                eggInfo = egg
-                break
-            end
+        if PetEggData and PetEggData[eggType] then
+            local eggData = PetEggData[eggType]
+            eggInfo = {
+                name = eggType,
+                price = eggData.Price,
+                id = eggData.PurchaseID
+            }
         end
         
         if eggInfo and sheckles >= eggInfo.price + AutomationConfig.AutoBuyEggs.KeepMinimum then
-            local success, error = pcall(function()
-                -- Use Market.PromptPurchase with real PurchaseID
-                if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                    Remotes.Market.PromptPurchase.send({
-                        type = 3, -- Eggs type
-                        id = eggInfo.id
-                    })
-                end
-            end)
+            local buyAmount = math.min(AutomationConfig.AutoBuyEggs.BuyUpTo, 
+                                     math.floor((sheckles - AutomationConfig.AutoBuyEggs.KeepMinimum) / eggInfo.price))
             
-            if success then
-                webhook:Log("INFO", "Purchased egg", {EggType = eggType, Price = eggInfo.price})
-                sheckles = sheckles - eggInfo.price
-                wait(2)
-            else
-                webhook:Log("ERROR", "Failed to buy egg", {Error = error})
+            if buyAmount > 0 then
+                for i = 1, buyAmount do
+                    local success, error = pcall(function()
+                        -- Use Market.PromptPurchase with real PurchaseID
+                        if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
+                            Remotes.Market.PromptPurchase.send({
+                                type = 3, -- Eggs type
+                                id = eggInfo.id
+                            })
+                        else
+                            error("Remotes.Market.PromptPurchase not available")
+                        end
+                    end)
+                    
+                    if success then
+                        webhook:Log("INFO", "Purchased egg", {EggType = eggType, Price = eggInfo.price})
+                        sheckles = sheckles - eggInfo.price
+                        wait(2)
+                    else
+                        webhook:Log("ERROR", "Failed to buy egg", {Error = error})
+                        break
+                    end
+                    
+                    if sheckles < eggInfo.price + AutomationConfig.AutoBuyEggs.KeepMinimum then
+                        break
+                    end
+                end
             end
         end
     end
@@ -1323,33 +1360,31 @@ end
 
 function TradingManager.SendTradeRequest(targetPlayer, items)
     local success, error = pcall(function()
-        -- Find trading system in the game
-        local TradeService = ReplicatedStorage:FindFirstChild("TradeService")
-        local TradingRemote = ReplicatedStorage:FindFirstChild("TradingRemote") 
-        
-        if TradeService then
-            TradeService:FireServer("SendTradeRequest", targetPlayer.UserId, items)
-        elseif TradingRemote then
-            TradingRemote:FireServer("RequestTrade", targetPlayer.UserId, items)
-        else
-            -- Try to find any trade-related remotes
-            for _, child in pairs(ReplicatedStorage:GetDescendants()) do
-                if child:IsA("RemoteEvent") and child.Name:lower():find("trade") then
-                    child:FireServer("Request", targetPlayer.UserId, items)
-                    break
+        -- Use ByteNet Gift system for trading/gifting
+        if Remotes and Remotes.Gift and Remotes.Gift.SendGiftTo then
+            -- For each item, send as a gift
+            for _, item in pairs(items) do
+                if item.type == "fruit" and item.productId then
+                    Remotes.Gift.SendGiftTo.send({
+                        productId = item.productId,
+                        targetUserId = targetPlayer.UserId
+                    })
+                    wait(1) -- Rate limit
                 end
             end
+        else
+            error("Gift system not available")
         end
     end)
     
     if success then
-        webhook:Log("INFO", "Sent trade request", {
+        webhook:Log("INFO", "Sent gifts to player", {
             TargetPlayer = targetPlayer.Name,
             ItemCount = #items
         })
         return true
     else
-        webhook:Log("ERROR", "Failed to send trade request", {Error = error})
+        webhook:Log("ERROR", "Failed to send gifts", {Error = error})
         return false
     end
 end
@@ -1755,18 +1790,24 @@ local function MainLoop()
     
     while true do
         if AutomationConfig and AutomationConfig.Enabled then
-            -- Shopping (with intervals)
-            if currentTime - lastTasks.buySeeds >= (AutomationConfig.AutoBuySeeds and AutomationConfig.AutoBuySeeds.CheckInterval or 30) then
+            -- Shopping (with intervals) - Check both master and individual enables
+            if AutomationConfig.AutoBuySeeds and AutomationConfig.AutoBuySeeds.Enabled and 
+               currentTime - lastTasks.buySeeds >= (AutomationConfig.AutoBuySeeds.CheckInterval or 30) then
+                print("🛒 Attempting to buy seeds...")
                 pcall(ShopManager.BuySeeds)
                 lastTasks.buySeeds = currentTime
             end
             
-            if currentTime - lastTasks.buyGear >= (AutomationConfig.AutoBuyGear and AutomationConfig.AutoBuyGear.CheckInterval or 60) then
+            if AutomationConfig.AutoBuyGear and AutomationConfig.AutoBuyGear.Enabled and
+               currentTime - lastTasks.buyGear >= (AutomationConfig.AutoBuyGear.CheckInterval or 60) then
+                print("🔧 Attempting to buy gear...")
                 pcall(ShopManager.BuyGear)
                 lastTasks.buyGear = currentTime
             end
             
-            if currentTime - lastTasks.buyEggs >= (AutomationConfig.AutoBuyEggs and AutomationConfig.AutoBuyEggs.CheckInterval or 45) then
+            if AutomationConfig.AutoBuyEggs and AutomationConfig.AutoBuyEggs.Enabled and
+               currentTime - lastTasks.buyEggs >= (AutomationConfig.AutoBuyEggs.CheckInterval or 45) then
+                print("🥚 Attempting to buy eggs...")
                 pcall(ShopManager.BuyEggs)
                 lastTasks.buyEggs = currentTime
             end
@@ -1914,11 +1955,16 @@ local AutomationSystemAPI = {
     -- UI Communication Functions
     UpdateConfig = function(newConfig)
         for key, value in pairs(newConfig) do
-            if AutomationConfig[key] then
+            if type(value) == "table" and type(AutomationConfig[key]) == "table" then
+                -- Deep merge for nested tables
+                for subKey, subValue in pairs(value) do
+                    AutomationConfig[key][subKey] = subValue
+                end
+            else
                 AutomationConfig[key] = value
             end
         end
-        webhook:Log("INFO", "Configuration updated")
+        webhook:Log("INFO", "Configuration updated from UI")
     end,
     
     GetStatus = function()
@@ -1963,6 +2009,10 @@ local AutomationSystemAPI = {
         end
     end
 }
+
+-- Make system available globally for UI integration
+_G.AutomationSystem = AutomationSystemAPI
+print("🔗 AutomationSystem exported to _G for UI integration")
 
 -- ========================================
 -- ADVANCED UI SYSTEM INTEGRATION
