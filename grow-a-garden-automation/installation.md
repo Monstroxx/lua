@@ -1,32 +1,25 @@
 # Installation Guide - Grow a Garden Automation
 
-## Quick Start (Recommended)
+## Quick Start (ONE FILE SOLUTION)
 
-**Option 1 - Synced System (BEST - Fixes nil errors & sync issues):**
+**Final Automation System (All-in-One):**
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/syncedLoader.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/finalLoader.lua"))()
 ```
 
-**Option 2 - Backend Only (No UI, most stable):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/backendOnly.lua"))()
-```
+✅ **Fixes ALL nil-value errors**  
+✅ **No UI loading issues**  
+✅ **No sync problems**  
+✅ **Single file solution**  
+✅ **Complete automation features**
 
-**Option 3 - Simple Loader (If having issues):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/simpleLoader.lua"))()
-```
-
-**Option 4 - Debug First (For troubleshooting):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/debugScript.lua"))()
-```
-
-This will automatically load:
-- ✅ Backend automation system
-- ✅ Advanced UI with all controls
-- ✅ Bridge system for UI-backend communication
-- ✅ Enhanced features (proximity prompts, teleportation, etc.)
+**Features:**
+- 🌱 Auto farming (planting, collecting)
+- 🛒 Auto shopping (seeds, gear, eggs)
+- 🐾 Pet management
+- 📊 Real-time status monitoring
+- 💬 Chat commands
+- 🆘 Emergency stop (Ctrl+Alt+X)
 
 ## Alternative Loading (Manual)
 

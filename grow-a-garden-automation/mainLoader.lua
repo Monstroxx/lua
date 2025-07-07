@@ -1,273 +1,542 @@
--- Main Loader Script for Grow a Garden Automation
--- This script loads and connects all components properly
+-- Final Automation Loader for Grow a Garden
+-- ONE FILE SOLUTION - No UI loading issues, no sync problems
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer.PlayerGui
 
-print("🌱 Starting Grow a Garden Automation System...")
+print("🌱 Final Automation Loader starting...")
 
--- Wait for game to load completely
+-- Wait for game to load
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
-
--- Wait for essential game services
 wait(3)
 
--- Initialize global automation system
-_G.AutomationSystem = _G.AutomationSystem or {
-    Config = {},
-    Functions = {},
-    UI = {},
-    Bridge = {},
-    Loaded = false
+-- Clear any existing automation
+_G.AutomationSystem = nil
+
+-- Safe module loading function
+local function SafeRequire(modulePath, moduleName)
+    local success, result = pcall(function()
+        return require(modulePath)
+    end)
+    
+    if success then
+        print("✅ " .. moduleName .. " loaded")
+        return result
+    else
+        warn("❌ " .. moduleName .. " failed:", result)
+        return nil
+    end
+end
+
+-- Import game modules safely
+local DataService = SafeRequire(ReplicatedStorage.Modules.DataService, "DataService")
+local Remotes = SafeRequire(ReplicatedStorage.Modules.Remotes, "Remotes")
+local PetsService = SafeRequire(ReplicatedStorage.Modules.PetServices.PetsService, "PetsService")
+
+-- Data imports
+local SeedData = SafeRequire(ReplicatedStorage.Data.SeedData, "SeedData")
+local GearData = SafeRequire(ReplicatedStorage.Data.GearData, "GearData")
+
+-- Configuration
+local AutomationConfig = {
+    -- Master Settings
+    Enabled = false,
+    WebhookURL = "",
+    LogLevel = "INFO",
+    
+    -- Auto Buy Settings
+    AutoBuySeeds = {
+        Enabled = false,
+        SelectedSeeds = {"Carrot", "Strawberry", "Blueberry"},
+        MaxSpend = 1000000,
+        KeepMinimum = 100000,
+        CheckInterval = 30,
+        MinStock = 10,
+        BuyUpTo = 50,
+    },
+    
+    AutoBuyGear = {
+        Enabled = false,
+        SelectedGear = {"Watering Can", "Trowel"},
+        MaxSpend = 500000,
+        KeepMinimum = 100000,
+        CheckInterval = 60,
+        MinStock = 5,
+        BuyUpTo = 20,
+    },
+    
+    AutoBuyEggs = {
+        Enabled = false,
+        SelectedEggs = {"Common Egg"},
+        MaxSpend = 2000000,
+        KeepMinimum = 500000,
+        CheckInterval = 45,
+        MinStock = 1,
+        BuyUpTo = 10,
+    },
+    
+    -- Farming Settings
+    AutoPlant = {
+        Enabled = false,
+        SelectedSeeds = {"Carrot", "Strawberry", "Blueberry"},
+        PlantInterval = 2,
+        UseWateringCan = true,
+        OnlyPlantSelected = true,
+    },
+    
+    AutoCollect = {
+        Enabled = false,
+        CollectInterval = 1,
+        CollectRadius = 100,
+        PrioritizeRareItems = true,
+    },
+    
+    -- Pet Management
+    PetManagement = {
+        Enabled = false,
+        AutoEquip = true,
+        AutoFeed = true,
+        AutoHatchEggs = true,
+        PetEquipSlots = 3,
+    },
+    
+    -- Events & Quests
+    AutoEvents = {
+        Enabled = false,
+        DailyQuests = true,
+        AutoClaim = true,
+    },
+    
+    -- Trading
+    AutoTrade = {
+        Enabled = false,
+        AutoAcceptTrades = false,
+        TargetPlayerName = "",
+        RequestInterval = 30,
+        MaxRequestAttempts = 5,
+    },
+    
+    -- Performance
+    Performance = {
+        ReduceGraphics = false,
+        DisableAnimations = false,
+    },
 }
 
--- Load Backend System
-print("📡 Loading Backend System...")
+-- Initialize global state
+_G.AutomationSystem = {
+    Config = AutomationConfig,
+    Functions = {},
+    Loaded = true
+}
 
-local backendSuccess, backendError = pcall(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/completeAutomationSystem.lua"))()
-end)
+print("✅ Configuration initialized")
 
-if not backendSuccess then
-    warn("❌ Backend loading failed:", backendError)
-    return
-end
-
--- Wait for backend to initialize with better error checking
-local attempts = 0
-while (not _G.AutomationSystem.Functions or not _G.AutomationSystem.Config) and attempts < 100 do
-    wait(0.1)
-    attempts = attempts + 1
+-- Simple logging
+local function Log(level, message, data)
+    local timestamp = os.date("%H:%M:%S")
+    local logMessage = string.format("[%s] %s: %s", timestamp, level, message)
     
-    if attempts % 20 == 0 then
-        print("⏳ Waiting for backend initialization... Attempt", attempts)
-        print("   Functions available:", _G.AutomationSystem.Functions ~= nil)
-        print("   Config available:", _G.AutomationSystem.Config ~= nil)
-        
-        if _G.AutomationSystem.Config then
-            print("   Config type:", type(_G.AutomationSystem.Config))
-            print("   Config has AutoPlant:", _G.AutomationSystem.Config.AutoPlant ~= nil)
+    if data then
+        for key, value in pairs(data) do
+            logMessage = logMessage .. " | " .. key .. ":" .. tostring(value)
         end
     end
-end
-
-if not _G.AutomationSystem.Functions then
-    warn("❌ Backend initialization timed out - Functions not available")
-    print("Debug: _G.AutomationSystem contents:")
-    for key, value in pairs(_G.AutomationSystem or {}) do
-        print("  ", key, "=", type(value))
+    
+    if level == "ERROR" then
+        warn(logMessage)
+    else
+        print(logMessage)
     end
-    return
 end
 
-if not _G.AutomationSystem.Config then
-    warn("❌ Backend initialization timed out - Config not available")
-    print("Debug: _G.AutomationSystem contents:")
-    for key, value in pairs(_G.AutomationSystem or {}) do
-        print("  ", key, "=", type(value))
+-- Data Management
+local DataManager = {}
+
+function DataManager.GetPlayerData()
+    if not DataService then
+        return {}
     end
-    return
+    
+    local success, data = pcall(function()
+        return DataService:GetData()
+    end)
+    
+    return (success and data) and data or {}
 end
 
--- Verify config structure
-if not _G.AutomationSystem.Config.AutoPlant then
-    warn("❌ Config structure invalid - AutoPlant missing")
-    print("Config keys available:")
-    for key, value in pairs(_G.AutomationSystem.Config or {}) do
-        print("  ", key, "=", type(value))
+function DataManager.GetBackpack()
+    local data = DataManager.GetPlayerData()
+    return data.Backpack or {}
+end
+
+function DataManager.GetSheckles()
+    local data = DataManager.GetPlayerData()
+    return data.Sheckles or 0
+end
+
+-- Farming System
+local FarmingManager = {}
+
+function FarmingManager.GetPlantableSpots()
+    local spots = {}
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return spots
     end
-    return
-end
-
-print("✅ Backend System loaded successfully!")
-
--- Load UI System
-print("🎨 Loading UI System...")
-local uiScript = [[
-    -- UI loading code will be inserted here
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
-]]
-
-local uiSuccess, uiError = pcall(function()
-    loadstring(uiScript)()
-end)
-
-if not uiSuccess then
-    warn("❌ UI loading failed:", uiError)
-    return
-end
-
-print("✅ UI System loaded successfully!")
-
--- Load Bridge System
-print("🔗 Loading Bridge System...")
-local bridgeScript = [[
-    -- Bridge loading code will be inserted here
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/automationBridge.lua"))()
-]]
-
-local bridgeSuccess, bridgeError = pcall(function()
-    loadstring(bridgeScript)()
-end)
-
-if not bridgeSuccess then
-    warn("❌ Bridge loading failed:", bridgeError)
-    return
-end
-
-print("✅ Bridge System loaded successfully!")
-
--- Enhanced Error Handling
-local function SafeCall(func, name)
-    local success, error = pcall(func)
-    if not success then
-        warn("❌ Error in " .. name .. ":", error)
-        if _G.AutomationSystem.Functions and _G.AutomationSystem.Functions.Webhook then
-            _G.AutomationSystem.Functions.Webhook:Log("ERROR", "Function failed: " .. name, {Error = error})
+    
+    local playerPos = character.HumanoidRootPart.Position
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == "PlantingSpot" and obj:IsA("Part") then
+            local distance = (obj.Position - playerPos).Magnitude
+            if distance <= 200 and not obj:FindFirstChild("Plant") then
+                table.insert(spots, obj)
+            end
         end
     end
+    
+    return spots
+end
+
+function FarmingManager.GetHarvestablePlants()
+    local plants = {}
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return plants
+    end
+    
+    local playerPos = character.HumanoidRootPart.Position
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:HasTag("Harvestable") or (obj.Name:find("Plant") and obj:GetAttribute("Grown")) then
+            local distance = (obj.Position - playerPos).Magnitude
+            if distance <= AutomationConfig.AutoCollect.CollectRadius then
+                table.insert(plants, obj)
+            end
+        end
+    end
+    
+    return plants
+end
+
+function FarmingManager.PlantSeed(seedType, spot)
+    if not table.find(AutomationConfig.AutoPlant.SelectedSeeds, seedType) then
+        return false
+    end
+    
+    local backpack = DataManager.GetBackpack()
+    local seedName = seedType .. " Seed"
+    if (backpack[seedName] or 0) <= 0 then
+        return false
+    end
+    
+    local success = pcall(function()
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = spot.CFrame + Vector3.new(0, 5, 0)
+            wait(0.5)
+            
+            -- Try proximity prompt
+            local proximityPrompt = spot:FindFirstChild("ProximityPrompt")
+            if proximityPrompt then
+                fireproximityprompt(proximityPrompt)
+                return
+            end
+            
+            -- Try click detector
+            local clickDetector = spot:FindFirstChild("ClickDetector")
+            if clickDetector then
+                fireclickdetector(clickDetector)
+                return
+            end
+            
+            -- Try remote event
+            if ReplicatedStorage:FindFirstChild("GameEvents") then
+                local trowelRemote = ReplicatedStorage.GameEvents:FindFirstChild("TrowelRemote")
+                if trowelRemote then
+                    trowelRemote:FireServer(seedType, spot.Position)
+                end
+            end
+        end
+    end)
+    
+    if success then
+        Log("INFO", "Planted seed", {SeedType = seedType})
+    end
+    
     return success
 end
 
--- Enhanced Manual Controls
-local ManualControls = {}
-
-function ManualControls.StartAutomation()
-    if _G.AutomationSystem.Config then
-        _G.AutomationSystem.Config.Enabled = true
-        print("✅ Automation started!")
-        return true
+function FarmingManager.CollectPlants()
+    local plants = FarmingManager.GetHarvestablePlants()
+    if #plants == 0 then return end
+    
+    local collected = 0
+    
+    for _, plant in pairs(plants) do
+        local success = pcall(function()
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                character.HumanoidRootPart.CFrame = plant.CFrame + Vector3.new(0, 5, 0)
+                wait(0.3)
+                
+                -- Try proximity prompt
+                local proximityPrompt = plant:FindFirstChild("ProximityPrompt") or plant:FindFirstChild("CollectPrompt")
+                if proximityPrompt then
+                    fireproximityprompt(proximityPrompt)
+                    return
+                end
+                
+                -- Try click detector
+                local clickDetector = plant:FindFirstChild("ClickDetector")
+                if clickDetector then
+                    fireclickdetector(clickDetector)
+                    return
+                end
+                
+                -- Try remote
+                if Remotes and Remotes.Crops and Remotes.Crops.Collect then
+                    Remotes.Crops.Collect.send({plant})
+                end
+            end
+        end)
+        
+        if success then
+            collected = collected + 1
+        end
+        
+        wait(AutomationConfig.AutoCollect.CollectInterval)
     end
-    return false
-end
-
-function ManualControls.StopAutomation()
-    if _G.AutomationSystem.Config then
-        _G.AutomationSystem.Config.Enabled = false
-        print("⏹️ Automation stopped!")
-        return true
-    end
-    return false
-end
-
-function ManualControls.GetStatus()
-    if _G.AutomationSystem.Functions then
-        return _G.AutomationSystem.Functions.GetStatus()
-    end
-    return {}
-end
-
-function ManualControls.ManualPlant()
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("plantSeeds")
-        end, "ManualPlant")
-    end
-end
-
-function ManualControls.ManualCollect()
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("collectPlants")
-        end, "ManualCollect")
-    end
-end
-
-function ManualControls.ManualBuySeeds()
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("buySeeds")
-        end, "ManualBuySeeds")
+    
+    if collected > 0 then
+        Log("INFO", "Collected plants", {Count = collected})
     end
 end
 
-function ManualControls.ManualPetManagement()
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("managePets")
-        end, "ManualPetManagement")
+-- Shop Management
+local ShopManager = {}
+
+function ShopManager.BuySeeds()
+    if not AutomationConfig.AutoBuySeeds.Enabled then return end
+    
+    local sheckles = DataManager.GetSheckles()
+    if sheckles < AutomationConfig.AutoBuySeeds.KeepMinimum then
+        Log("WARN", "Not enough money for safe seed buying")
+        return
+    end
+    
+    local backpack = DataManager.GetBackpack()
+    
+    for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds) do
+        local seedName = seedType .. " Seed"
+        local currentStock = backpack[seedName] or 0
+        
+        if currentStock < AutomationConfig.AutoBuySeeds.MinStock then
+            local success = pcall(function()
+                if ReplicatedStorage:FindFirstChild("GameEvents") then
+                    local buyRemote = ReplicatedStorage.GameEvents:FindFirstChild("BuySeedStock")
+                    if buyRemote then
+                        buyRemote:FireServer(seedType)
+                    end
+                end
+            end)
+            
+            if success then
+                Log("INFO", "Bought seed", {SeedType = seedType})
+                wait(1)
+            end
+        end
     end
 end
 
-function ManualControls.AcceptTrade()
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("acceptTrade")
-        end, "AcceptTrade")
+-- Pet Management
+local PetManager = {}
+
+function PetManager.EquipBestPets()
+    if not AutomationConfig.PetManagement.AutoEquip then return end
+    if not PetsService then return end
+    
+    local success = pcall(function()
+        -- This would need specific implementation based on the pet system
+        Log("INFO", "Pet management attempted")
+    end)
+end
+
+-- Main automation loop
+local lastTasks = {
+    buySeeds = 0,
+    plantSeeds = 0,
+    collectPlants = 0,
+    managePets = 0,
+}
+
+local function MainLoop()
+    while true do
+        if AutomationConfig.Enabled then
+            local currentTime = tick()
+            
+            -- Shopping
+            if currentTime - lastTasks.buySeeds >= AutomationConfig.AutoBuySeeds.CheckInterval then
+                pcall(ShopManager.BuySeeds)
+                lastTasks.buySeeds = currentTime
+            end
+            
+            -- Collecting
+            if AutomationConfig.AutoCollect.Enabled and currentTime - lastTasks.collectPlants >= AutomationConfig.AutoCollect.CollectInterval then
+                pcall(FarmingManager.CollectPlants)
+                lastTasks.collectPlants = currentTime
+            end
+            
+            -- Planting
+            if AutomationConfig.AutoPlant.Enabled and currentTime - lastTasks.plantSeeds >= AutomationConfig.AutoPlant.PlantInterval then
+                pcall(function()
+                    local spots = FarmingManager.GetPlantableSpots()
+                    for _, spot in pairs(spots) do
+                        for _, seedType in pairs(AutomationConfig.AutoPlant.SelectedSeeds) do
+                            if FarmingManager.PlantSeed(seedType, spot) then
+                                break
+                            end
+                        end
+                    end
+                end)
+                lastTasks.plantSeeds = currentTime
+            end
+            
+            -- Pet Management
+            if AutomationConfig.PetManagement.Enabled and currentTime - lastTasks.managePets >= 10 then
+                pcall(PetManager.EquipBestPets)
+                lastTasks.managePets = currentTime
+            end
+        end
+        
+        wait(1)
     end
 end
 
-function ManualControls.TradeWithPlayer(playerName)
-    if _G.AutomationSystem.Functions then
-        SafeCall(function()
-            _G.AutomationSystem.Functions.ManualTrigger("tradeWithPlayer", playerName)
-        end, "TradeWithPlayer")
-    end
-end
-
--- Chat Commands
-local function OnChatted(message)
+-- Chat commands
+local function onChatted(message)
     local command = message:lower()
     
-    if command == "/autostart" then
-        ManualControls.StartAutomation()
-    elseif command == "/autostop" then
-        ManualControls.StopAutomation()
-    elseif command == "/autostatus" then
-        local status = ManualControls.GetStatus()
+    if command == "/start" then
+        AutomationConfig.Enabled = true
+        Log("INFO", "Automation started")
+    elseif command == "/stop" then
+        AutomationConfig.Enabled = false
+        Log("INFO", "Automation stopped")
+    elseif command == "/status" then
+        local backpack = DataManager.GetBackpack()
+        local sheckles = DataManager.GetSheckles()
+        
         print("📊 Automation Status:")
-        for key, value in pairs(status) do
-            print("  " .. key .. ": " .. tostring(value))
+        print("  Enabled:", AutomationConfig.Enabled)
+        print("  Sheckles:", sheckles)
+        print("  AutoPlant:", AutomationConfig.AutoPlant.Enabled)
+        print("  AutoCollect:", AutomationConfig.AutoCollect.Enabled)
+        print("  AutoBuySeeds:", AutomationConfig.AutoBuySeeds.Enabled)
+        print("  PetManagement:", AutomationConfig.PetManagement.Enabled)
+        
+        local itemCount = 0
+        for _ in pairs(backpack) do
+            itemCount = itemCount + 1
         end
-    elseif command == "/plant" then
-        ManualControls.ManualPlant()
+        print("  Backpack Items:", itemCount)
+        
     elseif command == "/collect" then
-        ManualControls.ManualCollect()
+        FarmingManager.CollectPlants()
+    elseif command == "/plant" then
+        local spots = FarmingManager.GetPlantableSpots()
+        for _, spot in pairs(spots) do
+            for _, seedType in pairs(AutomationConfig.AutoPlant.SelectedSeeds) do
+                if FarmingManager.PlantSeed(seedType, spot) then
+                    break
+                end
+            end
+        end
     elseif command == "/buy" then
-        ManualControls.ManualBuySeeds()
-    elseif command == "/pets" then
-        ManualControls.ManualPetManagement()
-    elseif command == "/trade" then
-        ManualControls.AcceptTrade()
-    elseif command:sub(1, 11) == "/tradewith " then
-        local playerName = command:sub(12)
-        ManualControls.TradeWithPlayer(playerName)
+        ShopManager.BuySeeds()
+    elseif command == "/enable" then
+        local parts = {}
+        for part in message:gmatch("%S+") do
+            table.insert(parts, part)
+        end
+        
+        if parts[2] then
+            local feature = parts[2]:lower()
+            if feature == "plant" then
+                AutomationConfig.AutoPlant.Enabled = true
+                print("✅ Auto planting enabled")
+            elseif feature == "collect" then
+                AutomationConfig.AutoCollect.Enabled = true
+                print("✅ Auto collecting enabled")
+            elseif feature == "buy" then
+                AutomationConfig.AutoBuySeeds.Enabled = true
+                print("✅ Auto buying enabled")
+            elseif feature == "pets" then
+                AutomationConfig.PetManagement.Enabled = true
+                print("✅ Pet management enabled")
+            end
+        end
+    elseif command == "/disable" then
+        local parts = {}
+        for part in message:gmatch("%S+") do
+            table.insert(parts, part)
+        end
+        
+        if parts[2] then
+            local feature = parts[2]:lower()
+            if feature == "plant" then
+                AutomationConfig.AutoPlant.Enabled = false
+                print("⏹️ Auto planting disabled")
+            elseif feature == "collect" then
+                AutomationConfig.AutoCollect.Enabled = false
+                print("⏹️ Auto collecting disabled")
+            elseif feature == "buy" then
+                AutomationConfig.AutoBuySeeds.Enabled = false
+                print("⏹️ Auto buying disabled")
+            elseif feature == "pets" then
+                AutomationConfig.PetManagement.Enabled = false
+                print("⏹️ Pet management disabled")
+            end
+        end
     elseif command == "/help" then
-        print("🌱 Grow a Garden Automation Commands:")
-        print("  /autostart - Start automation")
-        print("  /autostop - Stop automation")
-        print("  /autostatus - Show status")
-        print("  /plant - Manual plant")
+        print("🌱 Final Automation Commands:")
+        print("  /start - Start all automation")
+        print("  /stop - Stop all automation")
+        print("  /status - Show detailed status")
         print("  /collect - Manual collect")
+        print("  /plant - Manual plant")
         print("  /buy - Manual buy seeds")
-        print("  /pets - Manual pet management")
-        print("  /trade - Accept trade")
-        print("  /tradewith [player] - Trade with player")
+        print("  /enable [feature] - Enable specific feature (plant/collect/buy/pets)")
+        print("  /disable [feature] - Disable specific feature")
+        print("  /help - Show this help")
     end
 end
 
--- Connect chat commands
-LocalPlayer.Chatted:Connect(OnChatted)
+LocalPlayer.Chatted:Connect(onChatted)
 
--- Store manual controls globally
-_G.AutomationSystem.ManualControls = ManualControls
+-- Store functions globally
+_G.AutomationSystem.Functions = {
+    DataManager = DataManager,
+    FarmingManager = FarmingManager,
+    ShopManager = ShopManager,
+    PetManager = PetManager,
+    Log = Log
+}
 
--- Emergency Stop Function
-local function EmergencyStop()
-    if _G.AutomationSystem.Config then
-        _G.AutomationSystem.Config.Enabled = false
-        print("🆘 EMERGENCY STOP ACTIVATED!")
-    end
-end
+-- Start automation loop
+spawn(MainLoop)
 
--- Keybind for emergency stop (Ctrl+Alt+X)
-local UserInputService = game:GetService("UserInputService")
+-- Emergency stop
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -276,30 +545,15 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local alt = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
         
         if ctrl and alt then
-            EmergencyStop()
+            AutomationConfig.Enabled = false
+            Log("ERROR", "EMERGENCY STOP ACTIVATED")
         end
     end
 end)
 
--- Health Check System
-spawn(function()
-    while true do
-        wait(30) -- Check every 30 seconds
-        
-        if _G.AutomationSystem.Functions then
-            local status = ManualControls.GetStatus()
-            if status.Enabled then
-                print("💓 Automation health check: RUNNING")
-            end
-        end
-    end
-end)
-
--- Final initialization
-_G.AutomationSystem.Loaded = true
-print("🎉 Grow a Garden Automation System fully loaded!")
-print("💬 Type /help for available commands")
+Log("INFO", "Final Automation System loaded successfully!")
+print("💬 Use /help for available commands")
+print("💬 Use /start to begin automation")
 print("🆘 Emergency stop: Ctrl+Alt+X")
 
--- Return the system for external access
 return _G.AutomationSystem

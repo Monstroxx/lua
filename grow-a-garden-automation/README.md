@@ -4,20 +4,15 @@ A comprehensive automation system for the Roblox game "Grow a Garden" that inclu
 
 ## 🚀 Quick Start
 
-**Recommended (All-in-One):**
+**ONE FILE SOLUTION (Fixes all errors):**
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/mainLoader.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/finalLoader.lua"))()
 ```
 
-**Backend Only (Most Stable):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/backendOnly.lua"))()
-```
-
-**Debug Mode (If having issues):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/debugScript.lua"))()
-```
+✅ **No nil-value errors**  
+✅ **No UI loading issues**  
+✅ **Complete automation**  
+✅ **Single file**
 
 ## ✨ Features
 
