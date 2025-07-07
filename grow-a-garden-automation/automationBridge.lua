@@ -9,12 +9,25 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer.PlayerGui
 
 -- Wait for automation system to load
-while not _G.AutomationSystem or not _G.AutomationSystem.Functions do
+local attempts = 0
+while (not _G.AutomationSystem or not _G.AutomationSystem.Functions or not _G.AutomationSystem.Config) and attempts < 100 do
     wait(0.1)
+    attempts = attempts + 1
+end
+
+if not _G.AutomationSystem or not _G.AutomationSystem.Functions then
+    warn("❌ AutomationBridge: Failed to connect to automation system")
+    return
 end
 
 local AutomationAPI = _G.AutomationSystem.Functions
 local Config = _G.AutomationSystem.Config
+
+-- Ensure Config is properly initialized
+if not Config or not Config.AutoPlant then
+    warn("❌ AutomationBridge: Config not properly initialized")
+    return
+end
 
 print("🔗 Automation Bridge loaded - UI connected to backend")
 

@@ -192,9 +192,10 @@ function WebhookManager.new(url)
 end
 
 function WebhookManager:Log(level, message, data)
-    if not AutomationConfig.WebhookURL or AutomationConfig.WebhookURL == "" then return end
+    if not AutomationConfig or not AutomationConfig.WebhookURL or AutomationConfig.WebhookURL == "" then return end
     
     local config = AutomationConfig
+    if not config.LogLevel then config.LogLevel = "INFO" end
     if config.LogLevel == "ERROR" and level ~= "ERROR" then return end
     if config.LogLevel == "WARN" and level == "INFO" then return end
     
@@ -248,7 +249,7 @@ local webhook = WebhookManager.new(AutomationConfig.WebhookURL)
 local PerformanceManager = {}
 
 function PerformanceManager.OptimizeGraphics()
-    if not AutomationConfig.Performance.ReduceGraphics then return end
+    if not AutomationConfig or not AutomationConfig.Performance or not AutomationConfig.Performance.ReduceGraphics then return end
     
     local lighting = game:GetService("Lighting")
     lighting.GlobalShadows = false
@@ -267,7 +268,7 @@ function PerformanceManager.OptimizeGraphics()
 end
 
 function PerformanceManager.DisableAnimations()
-    if not AutomationConfig.Performance.DisableAnimations then return end
+    if not AutomationConfig or not AutomationConfig.Performance or not AutomationConfig.Performance.DisableAnimations then return end
     
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Animation") then
@@ -346,7 +347,7 @@ function FarmingManager.GetHarvestablePlants()
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:HasTag("Harvestable") or (obj.Name:find("Plant") and obj:GetAttribute("Grown")) then
             local distance = (obj.Position - playerPos).Magnitude
-            if distance <= AutomationConfig.AutoCollect.CollectRadius then
+            if distance <= (AutomationConfig and AutomationConfig.AutoCollect and AutomationConfig.AutoCollect.CollectRadius or 100) then
                 table.insert(plants, obj)
             end
         end
@@ -356,11 +357,15 @@ function FarmingManager.GetHarvestablePlants()
 end
 
 function FarmingManager.PlantSeed(seedType, spot)
+    if not AutomationConfig or not AutomationConfig.AutoPlant then
+        return false
+    end
+    
     if not AutomationConfig.AutoPlant.OnlyPlantSelected then
         return false
     end
     
-    if not table.find(AutomationConfig.AutoPlant.SelectedSeeds, seedType) then
+    if not table.find(AutomationConfig.AutoPlant.SelectedSeeds or {}, seedType) then
         return false
     end
     
@@ -424,7 +429,7 @@ function FarmingManager.CollectPlants()
     local collected = 0
     
     -- Sort by priority if enabled
-    if AutomationConfig.AutoCollect.PrioritizeRareItems then
+    if AutomationConfig and AutomationConfig.AutoCollect and AutomationConfig.AutoCollect.PrioritizeRareItems then
         table.sort(plants, function(a, b)
             return (a:GetAttribute("Rarity") or 0) > (b:GetAttribute("Rarity") or 0)
         end)
@@ -463,7 +468,7 @@ function FarmingManager.CollectPlants()
             webhook:Log("ERROR", "Failed to collect plant", {Error = error})
         end
         
-        wait(AutomationConfig.AutoCollect.CollectInterval)
+        wait(AutomationConfig and AutomationConfig.AutoCollect and AutomationConfig.AutoCollect.CollectInterval or 1)
     end
     
     if collected > 0 then
@@ -473,7 +478,7 @@ end
 
 -- there is no ui for this feature ad this settings to advanceAutomationUI.lua
 function FarmingManager.UseWateringCan()
-    if not AutomationConfig.AutoPlant.UseWateringCan then return end
+    if not AutomationConfig or not AutomationConfig.AutoPlant or not AutomationConfig.AutoPlant.UseWateringCan then return end
     
     local backpack = DataManager.GetBackpack()
     local wateringCan = backpack["Watering Can"]
@@ -556,12 +561,12 @@ function ShopManager.NavigateToSeedShop()
 end
 
 function ShopManager.BuySeeds()
-    if not AutomationConfig.AutoBuySeeds.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then return end
     
     local backpack = DataManager.GetBackpack()
     local sheckles = DataManager.GetSheckles()
     
-    if sheckles < AutomationConfig.AutoBuySeeds.KeepMinimum then
+    if sheckles < (AutomationConfig.AutoBuySeeds.KeepMinimum or 100000) then
         webhook:Log("WARN", "Not enough money to buy seeds safely")
         return
     end
@@ -570,11 +575,11 @@ function ShopManager.BuySeeds()
     ShopManager.OpenShop()
     ShopManager.NavigateToSeedShop()
     
-    for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds) do
+    for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds or {}) do
         local seedName = seedType .. " Seed"
         local currentStock = backpack[seedName] or 0
         
-        if currentStock < AutomationConfig.AutoBuySeeds.MinStock then
+        if currentStock < (AutomationConfig.AutoBuySeeds.MinStock or 10) then
             local seedInfo = SeedData[seedType]
             if seedInfo and sheckles >= seedInfo.Price + AutomationConfig.AutoBuySeeds.KeepMinimum then
                 local buyAmount = math.min(AutomationConfig.AutoBuySeeds.BuyUpTo - currentStock, 
@@ -618,7 +623,7 @@ end
 
 -- not working maby check first what gear are in stock
 function ShopManager.BuyGear()
-    if not AutomationConfig.AutoBuyGear.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuyGear or not AutomationConfig.AutoBuyGear.Enabled then return end
     
     local backpack = DataManager.GetBackpack()
     local sheckles = DataManager.GetSheckles()
@@ -661,7 +666,7 @@ end
 
 -- not working maby check first what egg are in stock
 function ShopManager.BuyEggs()
-    if not AutomationConfig.AutoBuyEggs.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoBuyEggs or not AutomationConfig.AutoBuyEggs.Enabled then return end
     
     local sheckles = DataManager.GetSheckles()
     
@@ -729,7 +734,7 @@ function PetManager.NavigateToPetInventory()
 end
 
 function PetManager.EquipBestPets()
-    if not AutomationConfig.PetManagement.AutoEquip or not AutomationConfig.PetManagement.EquipBestPets then
+    if not AutomationConfig or not AutomationConfig.PetManagement or not AutomationConfig.PetManagement.AutoEquip or not AutomationConfig.PetManagement.EquipBestPets then
         return
     end
     
@@ -761,7 +766,7 @@ function PetManager.EquipBestPets()
     end)
     
     -- Equip best pets up to slot limit
-    local maxSlots = AutomationConfig.PetManagement.PetEquipSlots
+    local maxSlots = (AutomationConfig.PetManagement and AutomationConfig.PetManagement.PetEquipSlots) or 3
     for i = 1, math.min(#bestPets, maxSlots) do
         local pet = bestPets[i]
         if not equipped[tostring(i)] or equipped[tostring(i)] ~= pet.id then
@@ -784,7 +789,7 @@ function PetManager.EquipBestPets()
 end
 
 function PetManager.UnequipWeakPets()
-    if not AutomationConfig.PetManagement.AutoUnequip or not AutomationConfig.PetManagement.AutoUnequipWeak then
+    if not AutomationConfig or not AutomationConfig.PetManagement or not AutomationConfig.PetManagement.AutoUnequip or not AutomationConfig.PetManagement.AutoUnequipWeak then
         return
     end
     
@@ -813,7 +818,7 @@ function PetManager.UnequipWeakPets()
 end
 
 function PetManager.FeedPets()
-    if not AutomationConfig.PetManagement.AutoFeed then return end
+    if not AutomationConfig or not AutomationConfig.PetManagement or not AutomationConfig.PetManagement.AutoFeed then return end
     
     local petData = DataManager.GetPetData()
     local inventory = petData.PetInventory and petData.PetInventory.Data or {}
@@ -873,7 +878,7 @@ function PetManager.IsPetFood(itemName)
 end
 
 function PetManager.HatchEggs()
-    if not AutomationConfig.PetManagement.AutoHatchEggs then return end
+    if not AutomationConfig or not AutomationConfig.PetManagement or not AutomationConfig.PetManagement.AutoHatchEggs then return end
     
     local backpack = DataManager.GetBackpack()
     
@@ -901,7 +906,7 @@ end
 local EventManager = {}
 
 function EventManager.HandleEvents()
-    if not AutomationConfig.AutoEvents.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoEvents or not AutomationConfig.AutoEvents.Enabled then return end
     
     if AutomationConfig.AutoEvents.DailyQuests then
         EventManager.ClaimDailyQuests()
@@ -972,7 +977,7 @@ end
 local PackManager = {}
 
 function PackManager.OpenPacks()
-    if not AutomationConfig.MiscFeatures.AutoOpenPacks then return end
+    if not AutomationConfig or not AutomationConfig.MiscFeatures or not AutomationConfig.MiscFeatures.AutoOpenPacks then return end
     
     local backpack = DataManager.GetBackpack()
     
@@ -1117,7 +1122,7 @@ function TradingManager.AcceptIncomingTrade()
 end
 
 function TradingManager.HandleTrades()
-    if not AutomationConfig.AutoTrade.Enabled then return end
+    if not AutomationConfig or not AutomationConfig.AutoTrade or not AutomationConfig.AutoTrade.Enabled then return end
     
     if AutomationConfig.AutoTrade.AutoAcceptTrades then
         TradingManager.AutoAcceptTrades()
@@ -1133,7 +1138,8 @@ function TradingManager.HandleTrades()
 end
 
 function TradingManager.FindTargetPlayer()
-    local targetName = AutomationConfig.AutoTrade.TargetPlayerName
+    if not AutomationConfig or not AutomationConfig.AutoTrade then return nil end
+    local targetName = AutomationConfig.AutoTrade.TargetPlayerName or ""
     if targetName == "" then return nil end
     
     -- Find target player in current game
@@ -1149,7 +1155,7 @@ end
 -- list current player in lobby
 -- add function to refresh player list (refresh button needs to add in ui advancedAutomationUI.lua)
 function TradingManager.TeleportToPlayer(targetPlayer)
-    if not AutomationConfig.AutoTrade.AutoTeleportToTarget then return false end
+    if not AutomationConfig or not AutomationConfig.AutoTrade or not AutomationConfig.AutoTrade.AutoTeleportToTarget then return false end
     if not targetPlayer or not targetPlayer.Character then return false end
     
     local character = LocalPlayer.Character
@@ -1174,7 +1180,7 @@ function TradingManager.GetTradableItems()
     local tradableItems = {}
     
     -- Get fruits to trade
-    if AutomationConfig.AutoTrade.TradeAllFruitsToTarget then
+    if AutomationConfig and AutomationConfig.AutoTrade and AutomationConfig.AutoTrade.TradeAllFruitsToTarget then
         for itemName, amount in pairs(backpack) do
             if TradingManager.IsFruit(itemName) and amount > 0 then
                 table.insert(tradableItems, {
@@ -1187,7 +1193,7 @@ function TradingManager.GetTradableItems()
     end
     
     -- Get pets to trade
-    if AutomationConfig.AutoTrade.TradeAllPetsToTarget then
+    if AutomationConfig and AutomationConfig.AutoTrade and AutomationConfig.AutoTrade.TradeAllPetsToTarget then
         local petData = DataManager.GetPetData()
         local inventory = petData.PetInventory and petData.PetInventory.Data or {}
         
@@ -1378,34 +1384,34 @@ local function MainLoop()
     local currentTime = tick()
     
     while true do
-        if AutomationConfig.Enabled then
+        if AutomationConfig and AutomationConfig.Enabled then
             -- Shopping (with intervals)
-            if currentTime - lastTasks.buySeeds >= AutomationConfig.AutoBuySeeds.CheckInterval then
+            if currentTime - lastTasks.buySeeds >= (AutomationConfig.AutoBuySeeds and AutomationConfig.AutoBuySeeds.CheckInterval or 30) then
                 pcall(ShopManager.BuySeeds)
                 lastTasks.buySeeds = currentTime
             end
             
-            if currentTime - lastTasks.buyGear >= AutomationConfig.AutoBuyGear.CheckInterval then
+            if currentTime - lastTasks.buyGear >= (AutomationConfig.AutoBuyGear and AutomationConfig.AutoBuyGear.CheckInterval or 60) then
                 pcall(ShopManager.BuyGear)
                 lastTasks.buyGear = currentTime
             end
             
-            if currentTime - lastTasks.buyEggs >= AutomationConfig.AutoBuyEggs.CheckInterval then
+            if currentTime - lastTasks.buyEggs >= (AutomationConfig.AutoBuyEggs and AutomationConfig.AutoBuyEggs.CheckInterval or 45) then
                 pcall(ShopManager.BuyEggs)
                 lastTasks.buyEggs = currentTime
             end
             
             -- Farming (more frequent)
-            if AutomationConfig.AutoCollect.Enabled and currentTime - lastTasks.collectPlants >= AutomationConfig.AutoCollect.CollectInterval then
+            if AutomationConfig.AutoCollect and AutomationConfig.AutoCollect.Enabled and currentTime - lastTasks.collectPlants >= (AutomationConfig.AutoCollect.CollectInterval or 1) then
                 pcall(FarmingManager.CollectPlants)
                 lastTasks.collectPlants = currentTime
             end
             
-            if AutomationConfig.AutoPlant.Enabled and currentTime - lastTasks.plantSeeds >= AutomationConfig.AutoPlant.PlantInterval then
+            if AutomationConfig.AutoPlant and AutomationConfig.AutoPlant.Enabled and currentTime - lastTasks.plantSeeds >= (AutomationConfig.AutoPlant.PlantInterval or 2) then
                 pcall(function()
                     local spots = FarmingManager.GetPlantableSpots()
                     for _, spot in pairs(spots) do
-                        for _, seedType in pairs(AutomationConfig.AutoPlant.SelectedSeeds) do
+                        for _, seedType in pairs(AutomationConfig.AutoPlant.SelectedSeeds or {}) do
                             if FarmingManager.PlantSeed(seedType, spot) then
                                 break
                             end
@@ -1415,13 +1421,13 @@ local function MainLoop()
                 lastTasks.plantSeeds = currentTime
             end
             
-            if AutomationConfig.AutoPlant.UseWateringCan and currentTime - lastTasks.useWateringCan >= 30 then
+            if AutomationConfig.AutoPlant and AutomationConfig.AutoPlant.UseWateringCan and currentTime - lastTasks.useWateringCan >= 30 then
                 pcall(FarmingManager.UseWateringCan)
                 lastTasks.useWateringCan = currentTime
             end
             
             -- Pet Management
-            if AutomationConfig.PetManagement.Enabled and currentTime - lastTasks.managePets >= 10 then
+            if AutomationConfig.PetManagement and AutomationConfig.PetManagement.Enabled and currentTime - lastTasks.managePets >= 10 then
                 pcall(PetManager.EquipBestPets)
                 pcall(PetManager.UnequipWeakPets)
                 pcall(PetManager.FeedPets)
@@ -1430,19 +1436,19 @@ local function MainLoop()
             end
             
             -- Events (every 60 seconds)
-            if AutomationConfig.AutoEvents.Enabled and currentTime - lastTasks.handleEvents >= 60 then
+            if AutomationConfig.AutoEvents and AutomationConfig.AutoEvents.Enabled and currentTime - lastTasks.handleEvents >= 60 then
                 pcall(EventManager.HandleEvents)
                 lastTasks.handleEvents = currentTime
             end
             
             -- Packs (every 30 seconds)
-            if AutomationConfig.MiscFeatures.AutoOpenPacks and currentTime - lastTasks.openPacks >= 30 then
+            if AutomationConfig.MiscFeatures and AutomationConfig.MiscFeatures.AutoOpenPacks and currentTime - lastTasks.openPacks >= 30 then
                 pcall(PackManager.OpenPacks)
                 lastTasks.openPacks = currentTime
             end
             
             -- Trading (every 120 seconds)
-            if AutomationConfig.AutoTrade.Enabled and currentTime - lastTasks.handleTrades >= 120 then
+            if AutomationConfig.AutoTrade and AutomationConfig.AutoTrade.Enabled and currentTime - lastTasks.handleTrades >= 120 then
                 pcall(TradingManager.HandleTrades)
                 lastTasks.handleTrades = currentTime
             end
@@ -1472,6 +1478,12 @@ local RarityValues = {
 
 -- Initialize System
 local function Initialize()
+    -- Ensure AutomationConfig is available
+    if not AutomationConfig then
+        warn("AutomationConfig not available, initialization delayed")
+        return
+    end
+    
     webhook:Log("INFO", "Complete Automation System initialized")
     
     -- Apply performance optimizations
@@ -1479,7 +1491,7 @@ local function Initialize()
     PerformanceManager.DisableAnimations()
     
     -- Sync webhook URL
-    webhook.url = AutomationConfig.WebhookURL
+    webhook.url = AutomationConfig.WebhookURL or ""
     
     -- Start main loop
     spawn(MainLoop)
@@ -1508,6 +1520,13 @@ end
 
 -- Wait for everything to load then initialize
 wait(3)
+
+-- Ensure AutomationConfig is properly available
+if not AutomationConfig then
+    warn("Critical Error: AutomationConfig not initialized!")
+    return
+end
+
 Initialize()
 
 -- Export for UI integration

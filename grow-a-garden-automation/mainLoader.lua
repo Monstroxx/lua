@@ -29,13 +29,9 @@ _G.AutomationSystem = _G.AutomationSystem or {
 
 -- Load Backend System
 print("📡 Loading Backend System...")
-local backendScript = [[
-    -- Backend loading code will be inserted here
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/completeAutomationSystem.lua"))()
-]]
 
 local backendSuccess, backendError = pcall(function()
-    loadstring(backendScript)()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/completeAutomationSystem.lua"))()
 end)
 
 if not backendSuccess then
@@ -43,15 +39,26 @@ if not backendSuccess then
     return
 end
 
--- Wait for backend to initialize
+-- Wait for backend to initialize with better error checking
 local attempts = 0
-while not _G.AutomationSystem.Functions and attempts < 50 do
+while (not _G.AutomationSystem.Functions or not _G.AutomationSystem.Config) and attempts < 100 do
     wait(0.1)
     attempts = attempts + 1
+    
+    if attempts % 20 == 0 then
+        print("⏳ Waiting for backend initialization... Attempt", attempts)
+    end
 end
 
 if not _G.AutomationSystem.Functions then
-    warn("❌ Backend initialization timed out")
+    warn("❌ Backend initialization timed out - Functions not available")
+    print("Debug: _G.AutomationSystem =", _G.AutomationSystem)
+    return
+end
+
+if not _G.AutomationSystem.Config then
+    warn("❌ Backend initialization timed out - Config not available")
+    print("Debug: _G.AutomationSystem =", _G.AutomationSystem)
     return
 end
 
