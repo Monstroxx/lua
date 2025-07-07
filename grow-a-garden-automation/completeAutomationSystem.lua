@@ -178,7 +178,18 @@ _G.AutomationSystem.Functions = {}
 print("✅ AutomationConfig initialized and stored in _G.AutomationSystem.Config")
 
 -- Import the UI (HTTP Request Method) AFTER config is ready
-local AdvancedUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
+local AdvancedUI
+local uiSuccess, uiError = pcall(function()
+    AdvancedUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
+end)
+
+if not uiSuccess then
+    warn("⚠️ UI loading failed:", uiError)
+    print("📡 Continuing without UI - backend functions still available")
+    AdvancedUI = nil
+else
+    print("✅ UI loaded successfully")
+end
 
 -- Webhook System
 local WebhookManager = {}

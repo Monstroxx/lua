@@ -12,7 +12,12 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/gr
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/simpleLoader.lua"))()
 ```
 
-**Option 3 - Debug First (For troubleshooting):**
+**Option 3 - Backend Only (No UI, most stable):**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/backendOnly.lua"))()
+```
+
+**Option 4 - Debug First (For troubleshooting):**
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/debugScript.lua"))()
 ```
