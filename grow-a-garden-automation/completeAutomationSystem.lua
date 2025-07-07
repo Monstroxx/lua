@@ -19,19 +19,34 @@ if not game:IsLoaded() then
 end
 wait(3)
 
--- Import game modules
-local DataService = require(ReplicatedStorage.Modules.DataService)
-local Remotes = require(ReplicatedStorage.Modules.Remotes)
-local PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService)
-local CollectController = require(ReplicatedStorage.Modules.CollectController)
-local MarketController = require(ReplicatedStorage.Modules.MarketController)
+-- Safe module loading function
+local function SafeRequire(modulePath, moduleName)
+    local success, result = pcall(function()
+        return require(modulePath)
+    end)
+    
+    if success then
+        print("✅ " .. moduleName .. " loaded successfully")
+        return result
+    else
+        warn("❌ " .. moduleName .. " failed to load: " .. tostring(result))
+        return nil
+    end
+end
 
--- Data imports
-local SeedData = require(ReplicatedStorage.Data.SeedData)
-local GearData = require(ReplicatedStorage.Data.GearData)
-local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
-local PetEggData = require(ReplicatedStorage.Data.PetEggData)
-local SeedPackData = require(ReplicatedStorage.Data.SeedPackData)
+-- Import game modules safely
+local DataService = SafeRequire(ReplicatedStorage.Modules.DataService, "DataService")
+local Remotes = SafeRequire(ReplicatedStorage.Modules.Remotes, "Remotes")
+local PetsService = SafeRequire(ReplicatedStorage.Modules.PetServices.PetsService, "PetsService")
+local CollectController = SafeRequire(ReplicatedStorage.Modules.CollectController, "CollectController")
+local MarketController = SafeRequire(ReplicatedStorage.Modules.MarketController, "MarketController")
+
+-- Data imports safely
+local SeedData = SafeRequire(ReplicatedStorage.Data.SeedData, "SeedData")
+local GearData = SafeRequire(ReplicatedStorage.Data.GearData, "GearData")
+local PetList = SafeRequire(ReplicatedStorage.Data.PetRegistry.PetList, "PetList")
+local PetEggData = SafeRequire(ReplicatedStorage.Data.PetEggData, "PetEggData")
+local SeedPackData = SafeRequire(ReplicatedStorage.Data.SeedPackData, "SeedPackData")
 
 -- Automation Configuration (MUST BE DEFINED FIRST!)
 local AutomationConfig = {
@@ -175,21 +190,33 @@ _G.AutomationSystem = _G.AutomationSystem or {}
 _G.AutomationSystem.Config = AutomationConfig
 _G.AutomationSystem.Functions = {}
 
+-- Create config sync system
+_G.AutomationSystem.SyncConfig = function(newConfig)
+    if newConfig then
+        -- Merge new config with existing config
+        for key, value in pairs(newConfig) do
+            if AutomationConfig[key] then
+                if type(value) == "table" and type(AutomationConfig[key]) == "table" then
+                    -- Deep merge for nested tables
+                    for subKey, subValue in pairs(value) do
+                        AutomationConfig[key][subKey] = subValue
+                    end
+                else
+                    AutomationConfig[key] = value
+                end
+            end
+        end
+        _G.AutomationSystem.Config = AutomationConfig
+        print("🔄 Config synced from UI")
+    end
+    return AutomationConfig
+end
+
 print("✅ AutomationConfig initialized and stored in _G.AutomationSystem.Config")
 
--- Import the UI (HTTP Request Method) AFTER config is ready
-local AdvancedUI
-local uiSuccess, uiError = pcall(function()
-    AdvancedUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/advancedAutomationUI.lua"))()
-end)
-
-if not uiSuccess then
-    warn("⚠️ UI loading failed:", uiError)
-    print("📡 Continuing without UI - backend functions still available")
-    AdvancedUI = nil
-else
-    print("✅ UI loaded successfully")
-end
+-- DO NOT LOAD UI HERE - The mainLoader will handle UI loading separately
+-- This prevents the circular loading issue
+print("📡 Backend ready for UI connection")
 
 -- Webhook System
 local WebhookManager = {}
@@ -294,8 +321,21 @@ end
 local DataManager = {}
 
 function DataManager.GetPlayerData()
-    local data = DataService:GetData()
-    return data or {}
+    if not DataService then
+        warn("❌ DataService not available")
+        return {}
+    end
+    
+    local success, data = pcall(function()
+        return DataService:GetData()
+    end)
+    
+    if success and data then
+        return data
+    else
+        warn("❌ Failed to get player data:", data)
+        return {}
+    end
 end
 
 function DataManager.GetBackpack()

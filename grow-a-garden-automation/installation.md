@@ -2,19 +2,19 @@
 
 ## Quick Start (Recommended)
 
-**Option 1 - Full System (Recommended):**
+**Option 1 - Synced System (BEST - Fixes nil errors & sync issues):**
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/mainLoader.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/syncedLoader.lua"))()
 ```
 
-**Option 2 - Simple Loader (If Option 1 has timing issues):**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/simpleLoader.lua"))()
-```
-
-**Option 3 - Backend Only (No UI, most stable):**
+**Option 2 - Backend Only (No UI, most stable):**
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/backendOnly.lua"))()
+```
+
+**Option 3 - Simple Loader (If having issues):**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/lua/main/grow-a-garden-automation/simpleLoader.lua"))()
 ```
 
 **Option 4 - Debug First (For troubleshooting):**
