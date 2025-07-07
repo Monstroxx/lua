@@ -551,8 +551,216 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Simple UI Creation
+local function CreateSimpleUI()
+    -- Remove existing UI if present
+    if PlayerGui:FindFirstChild("AutomationUI") then
+        PlayerGui.AutomationUI:Destroy()
+    end
+    
+    -- Main UI
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutomationUI"
+    screenGui.Parent = PlayerGui
+    
+    -- Main Frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    mainFrame.Position = UDim2.new(0, 10, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = mainFrame
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundColor3 = Color3.fromRGB(120, 119, 255)
+    title.Text = "🌱 Garden Automation"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 16
+    title.Font = Enum.Font.GothamBold
+    title.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 10)
+    titleCorner.Parent = title
+    
+    -- Status Label
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(1, -20, 0, 30)
+    statusLabel.Position = UDim2.new(0, 10, 0, 50)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status: Stopped"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.TextSize = 14
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Parent = mainFrame
+    
+    -- Start/Stop Button
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(1, -20, 0, 35)
+    toggleButton.Position = UDim2.new(0, 10, 0, 85)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
+    toggleButton.Text = "START AUTOMATION"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextSize = 14
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.Parent = mainFrame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 8)
+    toggleCorner.Parent = toggleButton
+    
+    -- Feature Toggles
+    local features = {
+        {name = "Auto Plant", key = "AutoPlant"},
+        {name = "Auto Collect", key = "AutoCollect"},
+        {name = "Auto Buy Seeds", key = "AutoBuySeeds"},
+        {name = "Pet Management", key = "PetManagement"}
+    }
+    
+    local featureButtons = {}
+    
+    for i, feature in ipairs(features) do
+        local button = Instance.new("TextButton")
+        button.Name = feature.key .. "Button"
+        button.Size = UDim2.new(1, -20, 0, 30)
+        button.Position = UDim2.new(0, 10, 0, 125 + (i-1) * 35)
+        button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        button.Text = feature.name .. ": OFF"
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextSize = 12
+        button.Font = Enum.Font.Gotham
+        button.Parent = mainFrame
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 6)
+        buttonCorner.Parent = button
+        
+        featureButtons[feature.key] = button
+    end
+    
+    -- Manual Action Buttons
+    local manualButtons = {
+        {name = "Manual Collect", command = "/collect"},
+        {name = "Manual Plant", command = "/plant"},
+        {name = "Manual Buy", command = "/buy"}
+    }
+    
+    for i, btnData in ipairs(manualButtons) do
+        local button = Instance.new("TextButton")
+        button.Name = "Manual" .. i
+        button.Size = UDim2.new(1, -20, 0, 25)
+        button.Position = UDim2.new(0, 10, 0, 270 + (i-1) * 30)
+        button.BackgroundColor3 = Color3.fromRGB(175, 82, 222)
+        button.Text = btnData.name
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextSize = 11
+        button.Font = Enum.Font.Gotham
+        button.Parent = mainFrame
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 4)
+        buttonCorner.Parent = button
+        
+        button.MouseButton1Click:Connect(function()
+            onChatted(btnData.command)
+        end)
+    end
+    
+    -- Toggle Button Logic
+    toggleButton.MouseButton1Click:Connect(function()
+        AutomationConfig.Enabled = not AutomationConfig.Enabled
+        
+        if AutomationConfig.Enabled then
+            toggleButton.Text = "STOP AUTOMATION"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
+            statusLabel.Text = "Status: Running"
+            statusLabel.TextColor3 = Color3.fromRGB(52, 199, 89)
+        else
+            toggleButton.Text = "START AUTOMATION"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
+            statusLabel.Text = "Status: Stopped"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+    end)
+    
+    -- Feature Button Logic
+    for key, button in pairs(featureButtons) do
+        button.MouseButton1Click:Connect(function()
+            local config = AutomationConfig[key]
+            if config then
+                config.Enabled = not config.Enabled
+                
+                if config.Enabled then
+                    button.Text = button.Text:gsub("OFF", "ON")
+                    button.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
+                else
+                    button.Text = button.Text:gsub("ON", "OFF")
+                    button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                end
+            end
+        end)
+    end
+    
+    -- Draggable functionality
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+        end
+    end)
+    
+    title.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    title.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    print("✅ Simple UI created")
+end
+
+-- Create UI
+CreateSimpleUI()
+
+-- Minimize/Show UI with F3
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local ui = PlayerGui:FindFirstChild("AutomationUI")
+        if ui then
+            ui.MainFrame.Visible = not ui.MainFrame.Visible
+        end
+    end
+end)
+
 Log("INFO", "Final Automation System loaded successfully!")
-print("💬 Use /help for available commands")
+print("✅ Simple UI loaded")
+print("💬 Use F3 to toggle UI")
+print("💬 Use /help for chat commands")
 print("💬 Use /start to begin automation")
 print("🆘 Emergency stop: Ctrl+Alt+X")
 
