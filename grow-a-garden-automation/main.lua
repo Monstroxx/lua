@@ -36,85 +36,102 @@ local isRunning = false
 
 -- Webhook Functions
 local function SendWebhook(data)
+    -- Simple approach - try different methods and see what works
+    local success = false
+    
     if not Config.WebhookURL or Config.WebhookURL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
-        Log("⚠️ No webhook URL configured")
+        Log("⚠️ No webhook URL configured, skipping...")
         return false
     end
     
-    -- Debug all global functions
-    local globalFuncs = {}
-    for k, v in pairs(_G) do
-        if type(v) == "function" and string.lower(k):find("request") or string.lower(k):find("http") then
-            table.insert(globalFuncs, k)
-        end
-    end
-    Log("🔍 Found HTTP-related globals: " .. table.concat(globalFuncs, ", "))
+    Log("📡 Attempting to send webhook...")
     
-    -- Try to find HTTP function in different ways
-    local httpFunc = nil
-    local funcName = "none"
-    
-    -- Check common executor functions
-    if _G.request then
-        httpFunc = _G.request
-        funcName = "_G.request"
-    elseif rawget(_G, "request") then
-        httpFunc = rawget(_G, "request")
-        funcName = "rawget(_G, 'request')"
-    elseif getgenv then
-        local env = getgenv()
-        if env.request then
-            httpFunc = env.request
-            funcName = "getgenv().request"
-        elseif env.http_request then
-            httpFunc = env.http_request
-            funcName = "getgenv().http_request"
-        end
-    end
-    
-    -- Ronix specific checks
-    if not httpFunc then
-        -- Check if Ronix has specific HTTP function
-        local ronixFuncs = {"http_request", "httprequest", "syn_request", "request"}
-        for _, fname in ipairs(ronixFuncs) do
-            if _G[fname] then
-                httpFunc = _G[fname]
-                funcName = "_G." .. fname
-                break
+    -- Method 1: Try syn.request (Synapse X)
+    if not success then
+        local worked, result = pcall(function()
+            if syn and syn.request then
+                Log("🔄 Trying syn.request...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                syn.request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
             end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via syn.request")
+            success = true
         end
     end
     
-    if not httpFunc then
-        Log("❌ No HTTP function found")
-        Log("❌ Globals checked: request, http_request, httprequest, syn_request")
-        return false
+    -- Method 2: Try standard request function
+    if not success then
+        local worked, result = pcall(function()
+            if request then
+                Log("🔄 Trying request...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via request")
+            success = true
+        end
     end
     
-    Log("📡 Using: " .. funcName)
-    
-    local success, result = pcall(function()
-        local HttpService = game:GetService("HttpService")
-        local jsonData = HttpService:JSONEncode(data)
-        
-        -- Call the HTTP function
-        return httpFunc({
-            Url = Config.WebhookURL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = jsonData
-        })
-    end)
-    
-    if success then
-        Log("✅ Webhook sent successfully")
-        return true
-    else
-        Log("❌ Failed to send webhook: " .. tostring(result))
-        return false
+    -- Method 3: Try http_request
+    if not success then
+        local worked, result = pcall(function()
+            if http_request then
+                Log("🔄 Trying http_request...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                http_request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via http_request")
+            success = true
+        end
     end
+    
+    -- Method 4: Try game:HttpPost (sometimes available in mobile executors)
+    if not success then
+        local worked, result = pcall(function()
+            Log("🔄 Trying game:HttpPost...")
+            local jsonData = game:GetService("HttpService"):JSONEncode(data)
+            game:HttpPost(Config.WebhookURL, jsonData, false, {["Content-Type"] = "application/json"})
+            return true
+        end)
+        if worked then
+            Log("✅ Webhook sent via game:HttpPost")
+            success = true
+        end
+    end
+    
+    if not success then
+        Log("❌ No HTTP method worked - webhook disabled")
+        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost")
+    end
+    
+    return success
 end
 
 local function GetServerInfo()
