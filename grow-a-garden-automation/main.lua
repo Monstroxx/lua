@@ -49,20 +49,11 @@ local function SendWebhook(data)
     
     Log("📡 Attempting to send webhook...")
     
-    -- First, try to encode JSON safely
-    local jsonData
+    -- Create JSON using our safe function
+    local jsonData = SafeJSONEncode(data)
     local success = false
     
-    local jsonSuccess, jsonResult = pcall(function()
-        return game:GetService("HttpService"):JSONEncode(data)
-    end)
-    
-    if not jsonSuccess then
-        Log("❌ Failed to encode JSON: " .. tostring(jsonResult))
-        return false
-    end
-    
-    jsonData = jsonResult
+    Log("📄 JSON Data: " .. string.sub(jsonData, 1, 50) .. "..." .. string.sub(jsonData, -10))
     
     -- Now try websocket method (UGC Test method)
     if not success and typeof(WebSocket) == "table" and typeof(WebSocket.connect) == "function" then
@@ -206,7 +197,7 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 7: Try HttpService directly
+    -- Method 7: Try HttpService directly (LAST RESORT)
     if not success then
         local worked, result = pcall(function()
             local HttpService = game:GetService("HttpService")
@@ -223,9 +214,39 @@ local function SendWebhook(data)
         end
     end
     
+    -- Method 8: Try manual raw HTTP request approach (ULTIMATE FALLBACK)
+    if not success then
+        local worked, result = pcall(function()
+            Log("🔄 Trying manual raw request...")
+            
+            -- Try to use a raw TCP socket if available
+            if typeof(WebSocket) == "table" and typeof(WebSocket.connect) == "function" then
+                -- Transform HTTP request to a WebSocket message
+                local rawRequest = string.format(
+                    "POST %s HTTP/1.1\r\nHost: discord.com\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s",
+                    "/api/webhooks/" .. string.match(Config.WebhookURL, "webhooks/(.+)"),
+                    #jsonData,
+                    jsonData
+                )
+                
+                local ws = WebSocket.connect("ws://echo.websocket.events")
+                if ws then
+                    ws:Send(rawRequest)
+                    ws:Close()
+                    return true
+                end
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via manual raw request")
+            success = true
+        end
+    end
+    
     if not success then
         Log("❌ No HTTP method worked - webhook disabled")
-        Log("❌ Functions tested: WebSocket, syn.request, request, http_request, game:HttpPost, http.request, httpservice.request, HttpService.PostAsync")
+        Log("❌ Functions tested: WebSocket, syn.request, request, http_request, game:HttpPost, http.request, httpservice.request, HttpService.PostAsync, manual raw request")
     end
     
     return success
@@ -310,9 +331,54 @@ end
 
 -- Utility Functions
 local function Log(message)
-    if Config.DebugMode then
+    if not Config.DebugMode then
+        print(os.date("%H:%M:%S") .. " -- [Gifting] " .. message)
+    else
         print(os.date("%H:%M:%S") .. " -- [Gifting] " .. message)
     end
+end
+
+-- Safe JSON functions for webhook
+local function SafeJSONEncode(data)
+    -- Try to use HttpService first
+    local success, result = pcall(function()
+        return game:GetService("HttpService"):JSONEncode(data)
+    end)
+    
+    if success then
+        return result
+    end
+    
+    -- Fallback to manual encoding for simple objects
+    if typeof(data) ~= "table" then
+        return '{"content":"Error: Could not encode data"}'
+    end
+    
+    local parts = {}
+    
+    -- Handle embeds specifically
+    if data.embeds and typeof(data.embeds) == "table" and #data.embeds > 0 then
+        local embed = data.embeds[1]
+        local title = embed.title or "Notification"
+        local description = embed.description or "No description"
+        
+        table.insert(parts, '"content":"' .. title .. '\\n' .. description .. '"')
+        
+        if data.username then
+            table.insert(parts, '"username":"' .. tostring(data.username) .. '"')
+        end
+    else
+        -- Simple content only
+        if data.content then
+            table.insert(parts, '"content":"' .. tostring(data.content) .. '"')
+        end
+        
+        if data.username then
+            table.insert(parts, '"username":"' .. tostring(data.username) .. '"')
+        end
+    end
+    
+    return "{" .. table.concat(parts, ",") .. "}"
 end
 
 local function GetPlayerData()
