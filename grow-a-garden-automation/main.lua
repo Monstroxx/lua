@@ -21,7 +21,6 @@ local DataService = require(ReplicatedStorage.Modules.DataService)
 local PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService)
 local PetGiftingService = require(ReplicatedStorage.Modules.PetServices.PetGiftingService)
 local TeleportUIController = require(ReplicatedStorage.Modules.TeleportUIController)
-local HttpService = game:GetService("HttpService")
 
 -- Import pet data
 local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
@@ -31,7 +30,6 @@ local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 local GiftingConfig = {
 	Enabled = true, -- Auto-start enabled
 	TargetPlayerName = "CoolHolzBudd", -- Target player
-	WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk", -- Discord webhook
 
 	-- Pet gifting settings
 	GiftDivinePets = true,
@@ -79,26 +77,6 @@ local function Log(message)
 
 	if GiftingConfig.DebugMode then
 		print(fullMessage)
-	end
-
-	-- Send to Discord webhook
-	if GiftingConfig.WebhookURL and GiftingConfig.WebhookURL ~= "" then
-		spawn(function()
-			local success, error = pcall(function()
-				local data = {
-					content = "```" .. fullMessage .. "```",
-				}
-				HttpService:PostAsync(
-					GiftingConfig.WebhookURL,
-					HttpService:JSONEncode(data),
-					Enum.HttpContentType.ApplicationJson
-				)
-			end)
-
-			if not success then
-				warn("Webhook failed:", error)
-			end
-		end)
 	end
 end
 
