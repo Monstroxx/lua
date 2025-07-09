@@ -145,10 +145,13 @@ local function WaitForPetTool(petId, maxWait)
     maxWait = maxWait or 8
     local waited = 0
     
-    Log("🔍 Waiting for pet tool to appear in character...")
+    Log("🔍 Waiting for pet tool to appear in character or backpack...")
     
     while waited < maxWait do
         local character = LocalPlayer.Character
+        local backpack = LocalPlayer.Backpack
+        
+        -- Check character first
         if character then
             for _, tool in pairs(character:GetChildren()) do
                 if tool:IsA("Tool") then
@@ -156,8 +159,35 @@ local function WaitForPetTool(petId, maxWait)
                     local toolUUID = tool:GetAttribute("UUID")
                     
                     if toolPetUUID == petId or toolUUID == petId then
-                        Log("✅ Found matching pet tool: " .. tostring(tool.Name))
+                        Log("✅ Found matching pet tool in character: " .. tostring(tool.Name))
                         return tool
+                    end
+                end
+            end
+        end
+        
+        -- Check backpack
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local toolPetUUID = tool:GetAttribute("PET_UUID")
+                    local toolUUID = tool:GetAttribute("UUID")
+                    
+                    if toolPetUUID == petId or toolUUID == petId then
+                        Log("✅ Found matching pet tool in backpack: " .. tostring(tool.Name))
+                        
+                        -- Equip the tool from backpack
+                        local success = pcall(function()
+                            tool.Parent = character
+                        end)
+                        
+                        if success then
+                            Log("✅ Equipped tool from backpack")
+                            wait(0.5) -- Give it time to equip
+                            return tool
+                        else
+                            Log("❌ Failed to equip tool from backpack")
+                        end
                     end
                 end
             end
