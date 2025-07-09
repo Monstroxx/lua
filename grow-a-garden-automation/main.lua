@@ -363,10 +363,24 @@ end
 
 -- Main Gifting Process
 local function ProcessPetGifting(targetPlayer)
+	if not targetPlayer then
+		Log("❌ No target player provided for pet gifting")
+		return false
+	end
+
 	Log("🐕 Starting pet gifting process...")
 	GiftingState.CurrentStage = "Gifting Pets"
 
-	local giftablePets = GetGiftablePets()
+	local giftablePets = {}
+	local success, error = pcall(function()
+		giftablePets = GetGiftablePets()
+	end)
+
+	if not success then
+		Log("❌ Failed to get giftable pets: " .. tostring(error))
+		return false
+	end
+
 	local giftedCount = 0
 
 	if #giftablePets == 0 then
@@ -382,6 +396,11 @@ local function ProcessPetGifting(targetPlayer)
 			break
 		end
 
+		if not pet or not pet.id or not pet.name then
+			Log("⚠️ Skipping invalid pet data at index " .. i)
+			continue
+		end
+
 		GiftingState.CurrentPetIndex = i
 		Log(
 			"🔄 Processing pet "
@@ -389,60 +408,84 @@ local function ProcessPetGifting(targetPlayer)
 				.. "/"
 				.. #giftablePets
 				.. ": "
-				.. pet.name
+				.. tostring(pet.name)
 				.. " ("
-				.. pet.rarity
+				.. tostring(pet.rarity)
 				.. ", Level "
-				.. pet.level
+				.. tostring(pet.level or 1)
 				.. ")"
 		)
 
 		-- First unequip all pets to be safe
-		local equipped = GetEquippedPets()
+		local equipped = {}
+		pcall(function()
+			equipped = GetEquippedPets()
+		end)
+
 		for slot, equippedId in pairs(equipped) do
-			if equippedId and equippedId ~= "" then
-				UnequipPet(equippedId)
+			if equippedId and equippedId ~= "" and equippedId ~= pet.id then
+				pcall(function()
+					UnequipPet(equippedId)
+				end)
 				wait(0.5)
 			end
 		end
 
 		-- Equip the specific pet we want to gift
 		Log("⚙️ Equipping pet for gifting...")
-		if EquipPet(pet.id, 1) then
+		local equipSuccess = false
+		pcall(function()
+			equipSuccess = EquipPet(pet.id, 1)
+		end)
+
+		if equipSuccess then
 			-- Wait for the pet to appear in character - shorter timeout to avoid infinite yield
 			Log("⏳ Waiting for pet to appear in character...")
-			local petTool = WaitForPetInCharacter(3) -- Only wait 3 seconds to avoid infinite yield
+			local petTool = nil
+			pcall(function()
+				petTool = WaitForPetInCharacter(3) -- Only wait 3 seconds
+			end)
 
 			if petTool then
-				Log("✅ Pet tool ready: " .. (petTool.Name or "Unknown"))
+				Log("✅ Pet tool ready: " .. tostring(petTool.Name or "Unknown"))
 
 				-- Try to gift the pet
 				Log("🎁 Attempting to gift pet...")
-				if GiftCurrentPet(targetPlayer) then
+				local giftSuccess = false
+				pcall(function()
+					giftSuccess = GiftCurrentPet(targetPlayer)
+				end)
+
+				if giftSuccess then
 					giftedCount = giftedCount + 1
 					table.insert(GiftingState.GiftedPets, pet)
-					Log("🎉 Successfully gifted pet: " .. pet.name .. " to " .. targetPlayer.Name)
+					Log("🎉 Successfully gifted pet: " .. tostring(pet.name) .. " to " .. tostring(targetPlayer.Name))
 
 					-- Wait a bit to see if gift was successful
 					wait(2)
 
 					-- Check if pet is still in our inventory
-					local currentInventory = GetPetInventory()
-					if not currentInventory[pet.id] then
-						Log("✅ Confirmed: Pet " .. pet.name .. " is no longer in inventory")
-					else
-						Log("⚠️ Warning: Pet " .. pet.name .. " still in inventory - gift may have failed")
-					end
+					pcall(function()
+						local currentInventory = GetPetInventory()
+						if not currentInventory[pet.id] then
+							Log("✅ Confirmed: Pet " .. tostring(pet.name) .. " is no longer in inventory")
+						else
+							Log(
+								"⚠️ Warning: Pet "
+									.. tostring(pet.name)
+									.. " still in inventory - gift may have failed"
+							)
+						end
+					end)
 				else
-					Log("❌ Failed to gift pet: " .. pet.name)
+					Log("❌ Failed to gift pet: " .. tostring(pet.name))
 				end
 			else
 				Log("❌ Pet did not appear in character after equipping")
 
 				-- Try alternative method - direct service call with the pet ID
 				Log("🔄 Trying direct pet gifting service...")
-				local success, error = pcall(function()
-					-- Try to use the pet gifting service directly with pet data
+				pcall(function()
 					local gameEvents = ReplicatedStorage:WaitForChild("GameEvents", 1)
 					if gameEvents then
 						local petGiftingRemote = gameEvents:FindFirstChild("PetGiftingService")
@@ -456,10 +499,6 @@ local function ProcessPetGifting(targetPlayer)
 						Log("❌ GameEvents not found")
 					end
 				end)
-
-				if not success then
-					Log("❌ Direct service call failed: " .. tostring(error))
-				end
 			end
 
 			-- Always try to unequip after attempt
@@ -467,7 +506,7 @@ local function ProcessPetGifting(targetPlayer)
 				UnequipPet(pet.id)
 			end)
 		else
-			Log("❌ Failed to equip pet: " .. pet.name)
+			Log("❌ Failed to equip pet: " .. tostring(pet.name))
 		end
 
 		-- Delay between attempts
