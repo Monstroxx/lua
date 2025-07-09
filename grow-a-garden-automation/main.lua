@@ -34,26 +34,89 @@ local Config = {
 -- State
 local isRunning = false
 
+-- Utility Functions
+local function Log(message)
+    print(os.date("%H:%M:%S") .. " -- [Gifting] " .. message)
+end
+
 -- Webhook Functions
 local function SendWebhook(data)
-    -- Safest approach for HTTP requests
-    if not data then
-        Log("❌ No data provided for webhook")
+    print("Webhook started")
+    
+    -- Check webhook URL
+    if not Config or not Config.WebhookURL or Config.WebhookURL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
+        print("No webhook URL configured")
         return false
     end
     
-    if not Config.WebhookURL or Config.WebhookURL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
-        Log("⚠️ No webhook URL configured, skipping...")
-        return false
-    end
+    -- Simple JSON
+    local jsonData = '{"content":"Pet Gifting Bot is running", "username":"Grow a Garden Bot"}'
     
-    Log("📡 Attempting to send webhook...")
-    
-    -- Create JSON using our safe function
-    local jsonData = SafeJSONEncode(data)
+    -- Method 1: Try syn.request
     local success = false
     
-    Log("📄 JSON Data: " .. string.sub(jsonData, 1, 50) .. "..." .. string.sub(jsonData, -10))
+    if not success then
+        pcall(function()
+            if syn and syn.request then
+                print("Trying syn.request...")
+                
+                syn.request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                
+                success = true
+                print("Webhook sent via syn.request")
+            end
+        end)
+    end
+    
+    -- Method 2: Try request
+    if not success then
+        pcall(function()
+            if request then
+                print("Trying request...")
+                
+                request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                
+                success = true
+                print("Webhook sent via request")
+            end
+        end)
+    end
+    
+    -- Method 3: Try http_request
+    if not success then
+        pcall(function()
+            if http_request then
+                print("Trying http_request...")
+                
+                http_request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                
+                success = true
+                print("Webhook sent via http_request")
+            end
+        end)
+    end
+    
+    if not success then
+        print("Failed to send webhook")
+    end
+    
+    return success
+end
     
     -- Now try websocket method (UGC Test method)
     if not success and typeof(WebSocket) == "table" and typeof(WebSocket.connect) == "function" then
