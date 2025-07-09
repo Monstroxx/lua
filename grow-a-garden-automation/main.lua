@@ -28,7 +28,10 @@ local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 
 -- Import favorites system
 local InventoryServiceEnums = require(ReplicatedStorage.Data.EnumRegistry.InventoryServiceEnums)
-local FavoriteItemRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Favorite_Item")
+local FavoriteItemRemote = nil
+pcall(function()
+	FavoriteItemRemote = ReplicatedStorage:WaitForChild("GameEvents", 2):WaitForChild("Favorite_Item", 2)
+end)
 
 -- Configuration
 local GiftingConfig = {
@@ -315,27 +318,33 @@ local function UnfavoritePetTool(petTool)
 	
 	Log("🔓 Unfavoriting pet: " .. tostring(petTool.Name))
 	
-	-- Use the correct Favorite_Item remote (like right-click in inventory)
-	local success, error = pcall(function()
-		FavoriteItemRemote:FireServer(petTool)
-	end)
-	
-	if success then
-		Log("✅ Unfavorited pet using Favorite_Item remote: " .. tostring(petTool.Name))
-		wait(0.5) -- Wait for server to process
+	-- Try the Favorite_Item remote if available
+	if FavoriteItemRemote then
+		local success, error = pcall(function()
+			FavoriteItemRemote:FireServer(petTool)
+		end)
 		
-		-- Verify it worked
-		local stillFavorited = petTool:GetAttribute(InventoryServiceEnums.Favorite)
-		if not stillFavorited then
-			return true
+		if success then
+			Log("✅ Sent unfavorite request using Favorite_Item remote: " .. tostring(petTool.Name))
+			wait(1) -- Wait longer for server to process
+			
+			-- Verify it worked
+			local stillFavorited = petTool:GetAttribute(InventoryServiceEnums.Favorite)
+			if not stillFavorited then
+				Log("✅ Pet successfully unfavorited via remote")
+				return true
+			else
+				Log("⚠️ Pet still shows as favorited after remote call")
+			end
 		else
-			Log("⚠️ Pet still shows as favorited after remote call")
+			Log("❌ Failed to unfavorite pet with remote: " .. tostring(error))
 		end
 	else
-		Log("❌ Failed to unfavorite pet with remote: " .. tostring(error))
+		Log("⚠️ Favorite_Item remote not available")
 	end
 	
 	-- Try direct attribute method as fallback
+	Log("🔄 Trying direct attribute method...")
 	local directSuccess, directError = pcall(function()
 		petTool:SetAttribute(InventoryServiceEnums.Favorite, false)
 	end)
