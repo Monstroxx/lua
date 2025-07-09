@@ -1,5 +1,4 @@
--- Pet Gifting Script - Fixed version
--- Fixed pet equipping and proximity prompt triggering
+-- Pet Gifting Script - Fixed version using working pattern from mainalt.lua
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,11 +12,12 @@ end
 wait(3)
 
 -- Import services safely
-local DataService, PetsService, TeleportUIController
+local DataService, PetsService, PetGiftingService, TeleportUIController
 local PetList, InventoryServiceEnums, FavoriteItemRemote
 
 pcall(function() DataService = require(ReplicatedStorage.Modules.DataService) end)
 pcall(function() PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService) end)
+pcall(function() PetGiftingService = require(ReplicatedStorage.Modules.PetServices.PetGiftingService) end)
 pcall(function() TeleportUIController = require(ReplicatedStorage.Modules.TeleportUIController) end)
 pcall(function() PetList = require(ReplicatedStorage.Data.PetRegistry.PetList) end)
 pcall(function() InventoryServiceEnums = require(ReplicatedStorage.Data.EnumRegistry.InventoryServiceEnums) end)
@@ -108,7 +108,7 @@ local function EquipPet(petId)
     Log("⚙️ Equipping pet: " .. tostring(petId))
     
     local success, error = pcall(function()
-        PetsService:EquipPet(petId, 1) -- Fixed: proper parameter order
+        PetsService:EquipPet(petId, 1)
     end)
     
     if success then
@@ -176,17 +176,17 @@ local function WaitForPetTool(petId, maxWait)
                     if toolPetUUID == petId or toolUUID == petId then
                         Log("✅ Found matching pet tool in backpack: " .. tostring(tool.Name))
                         
-                        -- Equip the tool from backpack
+                        -- Move tool to character
                         local success = pcall(function()
                             tool.Parent = character
                         end)
                         
                         if success then
-                            Log("✅ Equipped tool from backpack")
-                            wait(0.5) -- Give it time to equip
+                            Log("✅ Moved tool to character")
+                            wait(0.5)
                             return tool
                         else
-                            Log("❌ Failed to equip tool from backpack")
+                            Log("❌ Failed to move tool to character")
                         end
                     end
                 end
@@ -201,46 +201,84 @@ local function WaitForPetTool(petId, maxWait)
     return nil
 end
 
-local function TriggerGiftPrompt(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then 
-        Log("❌ Cannot gift - missing target or character")
-        return false 
+local function TriggerGiftProximityPrompt()
+    -- Look for gift proximity prompts (from mainalt.lua)
+    local character = LocalPlayer.Character
+    if not character then
+        Log("❌ No character found for proximity prompt")
+        return false
     end
-    
+
+    -- Find proximity prompts related to gifting
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Enabled then
+            local actionText = obj.ActionText:lower()
+            if actionText:find("gift") or actionText:find("give") then
+                Log("🎁 Found gift proximity prompt: " .. obj.ActionText)
+                local success, error = pcall(function()
+                    obj:InputHoldBegin()
+                    wait(obj.HoldDuration or 0.5)
+                    obj:InputHoldEnd()
+                end)
+
+                if success then
+                    Log("✅ Triggered gift proximity prompt")
+                    return true
+                else
+                    Log("❌ Failed to trigger proximity prompt: " .. tostring(error))
+                end
+            end
+        end
+    end
+
+    Log("❌ No gift proximity prompt found")
+    return false
+end
+
+local function GiftCurrentPet(targetPlayer)
+    if not targetPlayer then
+        Log("❌ No target player provided")
+        return false
+    end
+
     local character = LocalPlayer.Character
     if not character then
         Log("❌ No character found")
         return false
     end
-    
-    -- Find proximity prompt in workspace (it should be parented to target's character)
-    local proximityPrompt = nil
-    
-    -- Check target character and its descendants for proximity prompt
-    for _, child in pairs(targetPlayer.Character:GetDescendants()) do
-        if child:IsA("ProximityPrompt") and child.ActionText and child.ActionText:find("Gift Pet") then
-            proximityPrompt = child
-            break
+
+    -- Check if we have a pet equipped/held
+    local currentTool = character:FindFirstChildWhichIsA("Tool")
+    if not currentTool then
+        Log("❌ No pet tool found in character")
+        return false
+    end
+
+    local petUUID = currentTool:GetAttribute("PET_UUID")
+    if not petUUID then
+        Log("❌ Tool is not a pet")
+        return false
+    end
+
+    Log("🎁 Gifting pet: " .. tostring(currentTool.Name) .. " to " .. tostring(targetPlayer.Name))
+
+    -- Try to gift the pet using the PetGiftingService first
+    if PetGiftingService then
+        local success, error = pcall(function()
+            PetGiftingService:GivePet(targetPlayer)
+        end)
+
+        if success then
+            Log("✅ Pet gift request sent via PetGiftingService: " .. tostring(currentTool.Name))
+            return true
+        else
+            Log("❌ PetGiftingService failed: " .. tostring(error))
         end
     end
-    
-    if not proximityPrompt then
-        Log("❌ No gift proximity prompt found on target")
-        return false
-    end
-    
-    Log("🎁 Triggering gift prompt...")
-    local success, error = pcall(function()
-        proximityPrompt:Trigger()
-    end)
-    
-    if success then
-        Log("✅ Gift prompt triggered for: " .. tostring(targetPlayer.Name))
-        return true
-    else
-        Log("❌ Gift prompt failed: " .. tostring(error))
-        return false
-    end
+
+    -- Fallback to proximity prompt (like in mainalt.lua)
+    Log("🔄 Trying proximity prompt fallback...")
+    return TriggerGiftProximityPrompt()
 end
 
 -- Main Functions
@@ -315,19 +353,19 @@ local function ProcessPetGifting(targetPlayer)
         -- Step 2: Equip pet
         Log("⚙️ Step 2: Equipping pet...")
         if EquipPet(pet.id) then
-            wait(3)
+            wait(2) -- Wait for equip to complete
             
             -- Step 3: Convert to tool  
             Log("🔧 Step 3: Converting to tool...")
             if MakePetIntoTool(pet.id) then
-                wait(2)
+                wait(1) -- Wait for conversion to complete
                 
                 -- Step 4: Wait for tool and gift
                 Log("⏳ Step 4: Waiting for tool...")
                 local tool = WaitForPetTool(pet.id, 8)
                 if tool then
-                    Log("🎁 Step 5: Triggering gift prompt...")
-                    if TriggerGiftPrompt(targetPlayer) then
+                    Log("🎁 Step 5: Attempting to gift pet...")
+                    if GiftCurrentPet(targetPlayer) then
                         giftedCount = giftedCount + 1
                         Log("🎉 Successfully gifted: " .. pet.name)
                         wait(3)
