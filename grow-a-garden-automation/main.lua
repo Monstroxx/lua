@@ -26,6 +26,10 @@ local TeleportUIController = require(ReplicatedStorage.Modules.TeleportUIControl
 local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
 local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 
+-- Import favorites system
+local InventoryServiceEnums = require(ReplicatedStorage.Data.EnumRegistry.InventoryServiceEnums)
+local FavoriteItemRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Favorite_Item")
+
 -- Configuration
 local GiftingConfig = {
 	Enabled = true, -- Auto-start enabled
@@ -295,7 +299,73 @@ local function UnequipPet(petId)
 	end
 end
 
--- Function to make a pet into a held tool (for gifting)
+-- Function to unfavorite a pet tool
+local function UnfavoritePetTool(petTool)
+	if not petTool or not petTool:IsA("Tool") then
+		Log("❌ Invalid pet tool for unfavorite")
+		return false
+	end
+	
+	-- Check if pet is favorited
+	local isFavorited = petTool:GetAttribute(InventoryServiceEnums.Favorite)
+	if not isFavorited then
+		Log("✅ Pet is not favorited: " .. tostring(petTool.Name))
+		return true -- Already not favorited
+	end
+	
+	Log("🔓 Unfavoriting pet: " .. tostring(petTool.Name))
+	
+	-- Use the correct Favorite_Item remote (like right-click in inventory)
+	local success, error = pcall(function()
+		FavoriteItemRemote:FireServer(petTool)
+	end)
+	
+	if success then
+		Log("✅ Unfavorited pet using Favorite_Item remote: " .. tostring(petTool.Name))
+		wait(0.5) -- Wait for server to process
+		
+		-- Verify it worked
+		local stillFavorited = petTool:GetAttribute(InventoryServiceEnums.Favorite)
+		if not stillFavorited then
+			return true
+		else
+			Log("⚠️ Pet still shows as favorited after remote call")
+		end
+	else
+		Log("❌ Failed to unfavorite pet with remote: " .. tostring(error))
+	end
+	
+	-- Try direct attribute method as fallback
+	local directSuccess, directError = pcall(function()
+		petTool:SetAttribute(InventoryServiceEnums.Favorite, false)
+	end)
+	
+	if directSuccess then
+		Log("✅ Unfavorited pet using direct attribute: " .. tostring(petTool.Name))
+		wait(0.5) -- Wait for attribute to sync
+		return true
+	else
+		Log("❌ All unfavorite methods failed: " .. tostring(directError))
+		return false
+	end
+end
+
+-- Function to ensure pet can be gifted (unfavorite if needed)
+local function EnsurePetCanBeGifted(petTool)
+	if not petTool then
+		return false
+	end
+	
+	-- Check if pet is favorited
+	local isFavorited = petTool:GetAttribute(InventoryServiceEnums.Favorite)
+	if isFavorited then
+		Log("⚠️ Pet is favorited, unfavoriting for gift: " .. tostring(petTool.Name))
+		return UnfavoritePetTool(petTool)
+	else
+		Log("✅ Pet is not favorited, ready for gift: " .. tostring(petTool.Name))
+		return true
+	end
+end
 local function MakePetIntoTool(petId)
 	Log("🔧 Converting pet to tool for gifting: " .. tostring(petId))
 	
@@ -537,47 +607,68 @@ local function ProcessPetGifting(targetPlayer)
 				if petTool then
 					Log("✅ Pet tool ready for gifting: " .. tostring(petTool.Name))
 
-					-- Step 4: Try to gift the pet
-					Log("🎁 Attempting to gift pet...")
-					local giftSuccess = false
+					-- Step 4: Ensure pet can be gifted (unfavorite if needed)
+					Log("🔓 Checking if pet needs to be unfavorited...")
+					local canBeGifted = false
 					pcall(function()
-						giftSuccess = GiftCurrentPet(targetPlayer)
+						canBeGifted = EnsurePetCanBeGifted(petTool)
 					end)
 
-					if giftSuccess then
-						giftedCount = giftedCount + 1
-						table.insert(GiftingState.GiftedPets, pet)
-						Log(
-							"🎉 Successfully gifted pet: "
-								.. tostring(pet.name)
-								.. " to "
-								.. tostring(targetPlayer.Name)
-						)
-
-						-- Wait a bit and check if gift was successful
-						wait(3)
-
+					if canBeGifted then
+						-- Step 5: Try to gift the pet
+						Log("🎁 Attempting to gift pet...")
+						local giftSuccess = false
 						pcall(function()
-							local currentInventory = GetPetInventory()
-							if not currentInventory[pet.id] then
-								Log("✅ Confirmed: Pet " .. tostring(pet.name) .. " is no longer in inventory")
-							else
-								Log(
-									"⚠️ Warning: Pet "
-										.. tostring(pet.name)
-										.. " still in inventory - gift may have failed"
-								)
-							end
+							giftSuccess = GiftCurrentPet(targetPlayer)
 						end)
-					else
-						Log("❌ Failed to gift pet: " .. tostring(pet.name))
 
-						-- Try to put the pet back if gift failed
-						Log("🔄 Returning pet to equipped state...")
+						if giftSuccess then
+							giftedCount = giftedCount + 1
+							table.insert(GiftingState.GiftedPets, pet)
+							Log(
+								"🎉 Successfully gifted pet: "
+									.. tostring(pet.name)
+									.. " to "
+									.. tostring(targetPlayer.Name)
+							)
+
+							-- Wait a bit and check if gift was successful
+							wait(3)
+
+							pcall(function()
+								local currentInventory = GetPetInventory()
+								if not currentInventory[pet.id] then
+									Log("✅ Confirmed: Pet " .. tostring(pet.name) .. " is no longer in inventory")
+								else
+									Log(
+										"⚠️ Warning: Pet "
+											.. tostring(pet.name)
+											.. " still in inventory - gift may have failed"
+									)
+								end
+							end)
+						else
+							Log("❌ Failed to gift pet: " .. tostring(pet.name))
+
+							-- Try to put the pet back if gift failed
+							Log("🔄 Returning pet to equipped state...")
+							pcall(function()
+								if petTool and petTool.Parent == LocalPlayer.Character then
+									petTool.Parent = LocalPlayer.Backpack
+								end
+								EquipPet(pet.id, 1)
+							end)
+						end
+					else
+						Log("❌ Pet cannot be gifted (failed to unfavorite): " .. tostring(pet.name))
+						-- Try to put the pet back
 						pcall(function()
 							if petTool and petTool.Parent == LocalPlayer.Character then
 								petTool.Parent = LocalPlayer.Backpack
 							end
+							EquipPet(pet.id, 1)
+						end)
+					end
 							EquipPet(pet.id, 1)
 						end)
 					end
