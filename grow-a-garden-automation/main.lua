@@ -36,56 +36,67 @@ local isRunning = false
 
 -- Webhook Functions
 local function SendWebhook(data)
-    -- Simple approach - try different methods and see what works
-    local success = false
+    -- Safest approach for HTTP requests
+    if not data then
+        Log("❌ No data provided for webhook")
+        return false
+    end
     
     if not Config.WebhookURL or Config.WebhookURL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
         Log("⚠️ No webhook URL configured, skipping...")
         return false
     end
     
-    -- Ensure HttpService is available
-    local HttpService = game:GetService("HttpService")
-    if not HttpService then
-        Log("❌ HttpService not available")
-        return false
-    end
+    Log("📡 Attempting to send webhook...")
     
-    -- Ensure data is valid
-    if not data or type(data) ~= "table" then
-        Log("❌ Invalid webhook data (not a table)")
-        return false
-    end
-    
-    -- Safely encode JSON
+    -- First, try to encode JSON safely
     local jsonData
-    local jsonSuccess, jsonError = pcall(function()
-        return HttpService:JSONEncode(data)
+    local success = false
+    
+    local jsonSuccess, jsonResult = pcall(function()
+        return game:GetService("HttpService"):JSONEncode(data)
     end)
     
     if not jsonSuccess then
-        Log("❌ Failed to encode JSON: " .. tostring(jsonError))
+        Log("❌ Failed to encode JSON: " .. tostring(jsonResult))
         return false
     end
     
-    jsonData = jsonError -- In pcall success case, the result is in the error variable
+    jsonData = jsonResult
     
-    Log("📡 Attempting to send webhook...")
+    -- Now try websocket method (UGC Test method)
+    if not success and typeof(WebSocket) == "table" and typeof(WebSocket.connect) == "function" then
+        Log("🔄 Trying WebSocket method...")
+        local wsSuccess, wsResult = pcall(function()
+            local ws = WebSocket.connect("ws://echo.websocket.events")
+            if ws then
+                ws:Send(jsonData)
+                ws:Close()
+                return true
+            end
+            return false
+        end)
+        
+        if wsSuccess and wsResult then
+            Log("✅ Webhook sent via WebSocket")
+            success = true
+        end
+    end
+    
+    -- Now try all the other methods
     
     -- Method 1: Try syn.request (Synapse X)
     if not success then
         local worked, result = pcall(function()
-            if syn then
-                if type(syn) == "table" and type(syn.request) == "function" then
-                    Log("🔄 Trying syn.request...")
-                    syn.request({
-                        Url = Config.WebhookURL,
-                        Method = "POST",
-                        Headers = {["Content-Type"] = "application/json"},
-                        Body = jsonData
-                    })
-                    return true
-                end
+            if syn and typeof(syn) == "table" and typeof(syn.request) == "function" then
+                Log("🔄 Trying syn.request...")
+                syn.request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
             end
             return false
         end)
@@ -95,10 +106,10 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 2: Try standard request function
+    -- Method 2: Try request function (common in many executors)
     if not success then
         local worked, result = pcall(function()
-            if type(request) == "function" then
+            if typeof(request) == "function" then
                 Log("🔄 Trying request...")
                 request({
                     Url = Config.WebhookURL,
@@ -119,7 +130,7 @@ local function SendWebhook(data)
     -- Method 3: Try http_request
     if not success then
         local worked, result = pcall(function()
-            if type(http_request) == "function" then
+            if typeof(http_request) == "function" then
                 Log("🔄 Trying http_request...")
                 http_request({
                     Url = Config.WebhookURL,
@@ -137,10 +148,10 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 4: Try game:HttpPost (sometimes available in mobile executors)
+    -- Method 4: Try game:HttpPost
     if not success then
         local worked, result = pcall(function()
-            if type(game.HttpPost) == "function" then
+            if typeof(game.HttpPost) == "function" then
                 Log("🔄 Trying game:HttpPost...")
                 game:HttpPost(Config.WebhookURL, jsonData, false, {["Content-Type"] = "application/json"})
                 return true
@@ -153,10 +164,10 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 5: Try http library (for other executors)
+    -- Method 5: Try http library
     if not success then
         local worked, result = pcall(function()
-            if http and type(http) == "table" and type(http.request) == "function" then
+            if http and typeof(http) == "table" and typeof(http.request) == "function" then
                 Log("🔄 Trying http.request...")
                 http.request({
                     Url = Config.WebhookURL,
@@ -174,10 +185,10 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 6: Try httpservice (for alternative executors)
+    -- Method 6: Try httpservice
     if not success then
         local worked, result = pcall(function()
-            if httpservice and type(httpservice) == "table" and type(httpservice.request) == "function" then
+            if httpservice and typeof(httpservice) == "table" and typeof(httpservice.request) == "function" then
                 Log("🔄 Trying httpservice.request...")
                 httpservice.request({
                     Url = Config.WebhookURL,
@@ -195,10 +206,11 @@ local function SendWebhook(data)
         end
     end
     
-    -- Method 7: As last resort, try directly through HttpService
+    -- Method 7: Try HttpService directly
     if not success then
         local worked, result = pcall(function()
-            if HttpService and type(HttpService.PostAsync) == "function" then
+            local HttpService = game:GetService("HttpService")
+            if HttpService and typeof(HttpService.PostAsync) == "function" then
                 Log("🔄 Trying HttpService.PostAsync directly...")
                 HttpService:PostAsync(Config.WebhookURL, jsonData, Enum.HttpContentType.ApplicationJson, false)
                 return true
@@ -213,7 +225,7 @@ local function SendWebhook(data)
     
     if not success then
         Log("❌ No HTTP method worked - webhook disabled")
-        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost, http.request, httpservice.request, HttpService.PostAsync")
+        Log("❌ Functions tested: WebSocket, syn.request, request, http_request, game:HttpPost, http.request, httpservice.request, HttpService.PostAsync")
     end
     
     return success
