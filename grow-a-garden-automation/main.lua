@@ -49,16 +49,18 @@ local function SendWebhook(data)
     -- Method 1: Try syn.request (Synapse X)
     if not success then
         local worked, result = pcall(function()
-            if syn and syn.request then
-                Log("🔄 Trying syn.request...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
-                syn.request({
-                    Url = Config.WebhookURL,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "application/json"},
-                    Body = jsonData
-                })
-                return true
+            if syn then
+                if type(syn) == "table" and type(syn.request) == "function" then
+                    Log("🔄 Trying syn.request...")
+                    local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                    syn.request({
+                        Url = Config.WebhookURL,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = jsonData
+                    })
+                    return true
+                end
             end
             return false
         end)
@@ -71,7 +73,7 @@ local function SendWebhook(data)
     -- Method 2: Try standard request function
     if not success then
         local worked, result = pcall(function()
-            if request then
+            if type(request) == "function" then
                 Log("🔄 Trying request...")
                 local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 request({
@@ -93,7 +95,7 @@ local function SendWebhook(data)
     -- Method 3: Try http_request
     if not success then
         local worked, result = pcall(function()
-            if http_request then
+            if type(http_request) == "function" then
                 Log("🔄 Trying http_request...")
                 local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 http_request({
@@ -115,20 +117,67 @@ local function SendWebhook(data)
     -- Method 4: Try game:HttpPost (sometimes available in mobile executors)
     if not success then
         local worked, result = pcall(function()
-            Log("🔄 Trying game:HttpPost...")
-            local jsonData = game:GetService("HttpService"):JSONEncode(data)
-            game:HttpPost(Config.WebhookURL, jsonData, false, {["Content-Type"] = "application/json"})
-            return true
+            if type(game.HttpPost) == "function" then
+                Log("🔄 Trying game:HttpPost...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                game:HttpPost(Config.WebhookURL, jsonData, false, {["Content-Type"] = "application/json"})
+                return true
+            end
+            return false
         end)
-        if worked then
+        if worked and result then
             Log("✅ Webhook sent via game:HttpPost")
+            success = true
+        end
+    end
+    
+    -- Method 5: Try http library (for other executors)
+    if not success then
+        local worked, result = pcall(function()
+            if http and type(http) == "table" and type(http.request) == "function" then
+                Log("🔄 Trying http.request...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                http.request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via http.request")
+            success = true
+        end
+    end
+    
+    -- Method 6: Try httpservice (for alternative executors)
+    if not success then
+        local worked, result = pcall(function()
+            if httpservice and type(httpservice) == "table" and type(httpservice.request) == "function" then
+                Log("🔄 Trying httpservice.request...")
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                httpservice.request({
+                    Url = Config.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = jsonData
+                })
+                return true
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via httpservice.request")
             success = true
         end
     end
     
     if not success then
         Log("❌ No HTTP method worked - webhook disabled")
-        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost")
+        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost, http.request, httpservice.request")
     end
     
     return success
