@@ -400,19 +400,21 @@ local function ProcessPetGifting(targetPlayer)
 		-- First unequip all pets to be safe
 		local equipped = GetEquippedPets()
 		for slot, equippedId in pairs(equipped) do
-			UnequipPet(equippedId)
-			wait(0.5)
+			if equippedId and equippedId ~= "" then
+				UnequipPet(equippedId)
+				wait(0.5)
+			end
 		end
 
 		-- Equip the specific pet we want to gift
 		Log("⚙️ Equipping pet for gifting...")
 		if EquipPet(pet.id, 1) then
-			-- Wait longer for the pet to appear in character
+			-- Wait for the pet to appear in character - shorter timeout to avoid infinite yield
 			Log("⏳ Waiting for pet to appear in character...")
-			local petTool = WaitForPetInCharacter(10) -- Wait up to 10 seconds
+			local petTool = WaitForPetInCharacter(3) -- Only wait 3 seconds to avoid infinite yield
 
 			if petTool then
-				Log("✅ Pet tool ready: " .. petTool.Name)
+				Log("✅ Pet tool ready: " .. (petTool.Name or "Unknown"))
 
 				-- Try to gift the pet
 				Log("🎁 Attempting to gift pet...")
@@ -437,23 +439,33 @@ local function ProcessPetGifting(targetPlayer)
 			else
 				Log("❌ Pet did not appear in character after equipping")
 
-				-- Try alternative method - direct remote call
-				Log("🔄 Trying direct remote call...")
+				-- Try alternative method - direct service call with the pet ID
+				Log("🔄 Trying direct pet gifting service...")
 				local success, error = pcall(function()
-					-- Look for pet gifting remotes
-					local gameEvents = ReplicatedStorage:FindFirstChild("GameEvents")
+					-- Try to use the pet gifting service directly with pet data
+					local gameEvents = ReplicatedStorage:WaitForChild("GameEvents", 1)
 					if gameEvents then
 						local petGiftingRemote = gameEvents:FindFirstChild("PetGiftingService")
 						if petGiftingRemote then
-							petGiftingRemote:FireServer("GivePet", targetPlayer)
-							Log("📡 Fired PetGiftingService remote")
+							petGiftingRemote:FireServer("GivePet", targetPlayer, pet.id)
+							Log("📡 Fired PetGiftingService remote with pet ID")
+						else
+							Log("❌ PetGiftingService remote not found")
 						end
+					else
+						Log("❌ GameEvents not found")
 					end
 				end)
+
+				if not success then
+					Log("❌ Direct service call failed: " .. tostring(error))
+				end
 			end
 
 			-- Always try to unequip after attempt
-			UnequipPet(pet.id)
+			pcall(function()
+				UnequipPet(pet.id)
+			end)
 		else
 			Log("❌ Failed to equip pet: " .. pet.name)
 		end
@@ -740,7 +752,9 @@ Players.PlayerAdded:Connect(function(player)
 		wait(3) -- Give them time to load in
 		if not GiftingState.IsRunning then
 			Log("🚀 Auto-starting gifting automation...")
-			RunGiftingAutomation()
+			spawn(function()
+				RunGiftingAutomation()
+			end)
 		end
 	end
 end)
