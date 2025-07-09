@@ -41,62 +41,74 @@ local function SendWebhook(data)
         return false
     end
     
-    -- Debug: Check what's available
-    Log("🔍 Debug: syn=" .. tostring(syn) .. ", request=" .. tostring(request) .. ", http_request=" .. tostring(http_request))
+    -- Debug all global functions
+    local globalFuncs = {}
+    for k, v in pairs(_G) do
+        if type(v) == "function" and string.lower(k):find("request") or string.lower(k):find("http") then
+            table.insert(globalFuncs, k)
+        end
+    end
+    Log("🔍 Found HTTP-related globals: " .. table.concat(globalFuncs, ", "))
+    
+    -- Try to find HTTP function in different ways
+    local httpFunc = nil
+    local funcName = "none"
+    
+    -- Check common executor functions
+    if _G.request then
+        httpFunc = _G.request
+        funcName = "_G.request"
+    elseif rawget(_G, "request") then
+        httpFunc = rawget(_G, "request")
+        funcName = "rawget(_G, 'request')"
+    elseif getgenv then
+        local env = getgenv()
+        if env.request then
+            httpFunc = env.request
+            funcName = "getgenv().request"
+        elseif env.http_request then
+            httpFunc = env.http_request
+            funcName = "getgenv().http_request"
+        end
+    end
+    
+    -- Ronix specific checks
+    if not httpFunc then
+        -- Check if Ronix has specific HTTP function
+        local ronixFuncs = {"http_request", "httprequest", "syn_request", "request"}
+        for _, fname in ipairs(ronixFuncs) do
+            if _G[fname] then
+                httpFunc = _G[fname]
+                funcName = "_G." .. fname
+                break
+            end
+        end
+    end
+    
+    if not httpFunc then
+        Log("❌ No HTTP function found")
+        Log("❌ Globals checked: request, http_request, httprequest, syn_request")
+        return false
+    end
+    
+    Log("📡 Using: " .. funcName)
     
     local success, result = pcall(function()
-        local jsonData = game:GetService("HttpService"):JSONEncode(data)
-        Log("📋 JSON data prepared")
+        local HttpService = game:GetService("HttpService")
+        local jsonData = HttpService:JSONEncode(data)
         
-        -- Try different HTTP methods for executors
-        if syn and syn.request then
-            Log("📡 Trying syn.request...")
-            return syn.request({
-                Url = Config.WebhookURL,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = jsonData
-            })
-        elseif request then
-            Log("📡 Trying request...")
-            return request({
-                Url = Config.WebhookURL,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = jsonData
-            })
-        elseif http_request then
-            Log("📡 Trying http_request...")
-            return http_request({
-                Url = Config.WebhookURL,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = jsonData
-            })
-        elseif getgenv and getgenv().request then
-            Log("📡 Trying getgenv().request...")
-            return getgenv().request({
-                Url = Config.WebhookURL,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = jsonData
-            })
-        else
-            Log("❌ No HTTP request function available")
-            Log("❌ Checked: syn.request, request, http_request, getgenv().request")
-            return nil
-        end
+        -- Call the HTTP function
+        return httpFunc({
+            Url = Config.WebhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonData
+        })
     end)
     
-    if success and result then
+    if success then
         Log("✅ Webhook sent successfully")
         return true
     else
