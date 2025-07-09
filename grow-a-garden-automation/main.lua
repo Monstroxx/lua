@@ -28,7 +28,7 @@ local PetRarities = require(ReplicatedStorage.Data.PetRegistry.PetRarities)
 
 -- Configuration
 local GiftingConfig = {
-	Enabled = false,
+	Enabled = true,
 	TargetPlayerName = "CoolHolzBudd", -- Set the target player name here
 
 	-- Pet gifting settings
