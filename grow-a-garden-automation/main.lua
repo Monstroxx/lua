@@ -44,6 +44,32 @@ local function SendWebhook(data)
         return false
     end
     
+    -- Ensure HttpService is available
+    local HttpService = game:GetService("HttpService")
+    if not HttpService then
+        Log("❌ HttpService not available")
+        return false
+    end
+    
+    -- Ensure data is valid
+    if not data or type(data) ~= "table" then
+        Log("❌ Invalid webhook data (not a table)")
+        return false
+    end
+    
+    -- Safely encode JSON
+    local jsonData
+    local jsonSuccess, jsonError = pcall(function()
+        return HttpService:JSONEncode(data)
+    end)
+    
+    if not jsonSuccess then
+        Log("❌ Failed to encode JSON: " .. tostring(jsonError))
+        return false
+    end
+    
+    jsonData = jsonError -- In pcall success case, the result is in the error variable
+    
     Log("📡 Attempting to send webhook...")
     
     -- Method 1: Try syn.request (Synapse X)
@@ -52,7 +78,6 @@ local function SendWebhook(data)
             if syn then
                 if type(syn) == "table" and type(syn.request) == "function" then
                     Log("🔄 Trying syn.request...")
-                    local jsonData = game:GetService("HttpService"):JSONEncode(data)
                     syn.request({
                         Url = Config.WebhookURL,
                         Method = "POST",
@@ -75,7 +100,6 @@ local function SendWebhook(data)
         local worked, result = pcall(function()
             if type(request) == "function" then
                 Log("🔄 Trying request...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 request({
                     Url = Config.WebhookURL,
                     Method = "POST",
@@ -97,7 +121,6 @@ local function SendWebhook(data)
         local worked, result = pcall(function()
             if type(http_request) == "function" then
                 Log("🔄 Trying http_request...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 http_request({
                     Url = Config.WebhookURL,
                     Method = "POST",
@@ -119,7 +142,6 @@ local function SendWebhook(data)
         local worked, result = pcall(function()
             if type(game.HttpPost) == "function" then
                 Log("🔄 Trying game:HttpPost...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 game:HttpPost(Config.WebhookURL, jsonData, false, {["Content-Type"] = "application/json"})
                 return true
             end
@@ -136,7 +158,6 @@ local function SendWebhook(data)
         local worked, result = pcall(function()
             if http and type(http) == "table" and type(http.request) == "function" then
                 Log("🔄 Trying http.request...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 http.request({
                     Url = Config.WebhookURL,
                     Method = "POST",
@@ -158,7 +179,6 @@ local function SendWebhook(data)
         local worked, result = pcall(function()
             if httpservice and type(httpservice) == "table" and type(httpservice.request) == "function" then
                 Log("🔄 Trying httpservice.request...")
-                local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 httpservice.request({
                     Url = Config.WebhookURL,
                     Method = "POST",
@@ -175,9 +195,25 @@ local function SendWebhook(data)
         end
     end
     
+    -- Method 7: As last resort, try directly through HttpService
+    if not success then
+        local worked, result = pcall(function()
+            if HttpService and type(HttpService.PostAsync) == "function" then
+                Log("🔄 Trying HttpService.PostAsync directly...")
+                HttpService:PostAsync(Config.WebhookURL, jsonData, Enum.HttpContentType.ApplicationJson, false)
+                return true
+            end
+            return false
+        end)
+        if worked and result then
+            Log("✅ Webhook sent via HttpService.PostAsync")
+            success = true
+        end
+    end
+    
     if not success then
         Log("❌ No HTTP method worked - webhook disabled")
-        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost, http.request, httpservice.request")
+        Log("❌ Functions tested: syn.request, request, http_request, game:HttpPost, http.request, httpservice.request, HttpService.PostAsync")
     end
     
     return success
