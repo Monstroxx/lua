@@ -295,6 +295,97 @@ local function UnequipPet(petId)
 	end
 end
 
+-- Function to make a pet into a held tool (for gifting)
+local function MakePetIntoTool(petId)
+	Log("🔧 Converting pet to tool for gifting: " .. tostring(petId))
+	
+	local success, error = pcall(function()
+		-- Use UnequipPet to convert the pet into a Tool in character
+		PetsService:UnequipPet(petId)
+	end)
+	
+	if success then
+		Log("✅ Pet converted to tool using UnequipPet")
+		return true
+	else
+		Log("❌ Failed to convert pet to tool: " .. tostring(error))
+		return false
+	end
+end
+
+local function WaitForPetToolInCharacter(petId, maxWaitTime)
+	maxWaitTime = maxWaitTime or 5
+	local waitTime = 0
+	
+	Log("🔍 Waiting for pet tool to appear in character...")
+	Log("🔍 Looking for pet ID: " .. tostring(petId))
+	
+	while waitTime < maxWaitTime do
+		local character = LocalPlayer.Character
+		if character then
+			-- Debug: Log all tools in character
+			local toolsFound = {}
+			for _, child in pairs(character:GetChildren()) do
+				if child:IsA("Tool") then
+					local petUUID = child:GetAttribute("PET_UUID")
+					local toolUUID = child:GetAttribute("UUID")
+					table.insert(toolsFound, {
+						Name = child.Name,
+						PET_UUID = petUUID,
+						UUID = toolUUID
+					})
+					
+					-- Check if this tool matches our pet
+					if petUUID == petId or toolUUID == petId then
+						Log("✅ Pet tool found in character: " .. tostring(child.Name))
+						return child
+					end
+				end
+			end
+			
+			-- Log what tools we found for debugging
+			if #toolsFound > 0 then
+				Log("🔍 Tools found in character:")
+				for _, tool in ipairs(toolsFound) do
+					Log("  - " .. tostring(tool.Name) .. " (PET_UUID: " .. tostring(tool.PET_UUID) .. ", UUID: " .. tostring(tool.UUID) .. ")")
+				end
+			else
+				Log("🔍 No tools found in character")
+			end
+			
+			-- Also check backpack
+			local backpack = LocalPlayer.Backpack
+			if backpack then
+				for _, child in pairs(backpack:GetChildren()) do
+					if child:IsA("Tool") then
+						local petUUID = child:GetAttribute("PET_UUID")
+						local toolUUID = child:GetAttribute("UUID")
+						
+						if petUUID == petId or toolUUID == petId then
+							Log("🎒 Pet tool found in backpack, moving to character...")
+							local moveSuccess, moveError = pcall(function()
+								child.Parent = character
+							end)
+							if moveSuccess then
+								wait(0.5)
+								return child
+							else
+								Log("❌ Failed to move pet tool: " .. tostring(moveError))
+							end
+						end
+					end
+				end
+			end
+		end
+		
+		wait(0.5)
+		waitTime = waitTime + 0.5
+	end
+	
+	Log("⏰ Pet tool not found after " .. waitTime .. " seconds")
+	return nil
+end
+
 local function TriggerGiftProximityPrompt()
 	-- Look for gift proximity prompts
 	local character = LocalPlayer.Character
@@ -416,95 +507,90 @@ local function ProcessPetGifting(targetPlayer)
 				.. ")"
 		)
 
-		-- First unequip all pets to be safe
-		local equipped = {}
-		pcall(function()
-			equipped = GetEquippedPets()
-		end)
-
-		for slot, equippedId in pairs(equipped) do
-			if equippedId and equippedId ~= "" and equippedId ~= pet.id then
-				pcall(function()
-					UnequipPet(equippedId)
-				end)
-				wait(0.5)
-			end
-		end
-
-		-- Equip the specific pet we want to gift
-		Log("⚙️ Equipping pet for gifting...")
+		-- Step 1: First equip the pet in a slot (if not already equipped)
+		Log("⚙️ Ensuring pet is equipped...")
 		local equipSuccess = false
 		pcall(function()
 			equipSuccess = EquipPet(pet.id, 1)
 		end)
 
 		if equipSuccess then
-			-- Wait for the pet to appear in character - shorter timeout to avoid infinite yield
-			Log("⏳ Waiting for pet to appear in character...")
-			local petTool = nil
+			wait(2) -- Wait longer for equip to complete
+
+			-- Step 2: Convert equipped pet to tool using UnequipPet
+			Log("🔧 Converting equipped pet to held tool...")
+			local toolSuccess = false
 			pcall(function()
-				petTool = WaitForPetInCharacter(3) -- Only wait 3 seconds
+				toolSuccess = MakePetIntoTool(pet.id)
 			end)
 
-			if petTool then
-				Log("✅ Pet tool ready: " .. tostring(petTool.Name or "Unknown"))
-
-				-- Try to gift the pet
-				Log("🎁 Attempting to gift pet...")
-				local giftSuccess = false
+			if toolSuccess then
+				wait(1) -- Wait for conversion to complete
+				
+				-- Step 3: Wait for pet tool to appear in character
+				Log("⏳ Waiting for pet tool to appear...")
+				local petTool = nil
 				pcall(function()
-					giftSuccess = GiftCurrentPet(targetPlayer)
+					petTool = WaitForPetToolInCharacter(pet.id, 8) -- Wait longer
 				end)
 
-				if giftSuccess then
-					giftedCount = giftedCount + 1
-					table.insert(GiftingState.GiftedPets, pet)
-					Log("🎉 Successfully gifted pet: " .. tostring(pet.name) .. " to " .. tostring(targetPlayer.Name))
+				if petTool then
+					Log("✅ Pet tool ready for gifting: " .. tostring(petTool.Name))
 
-					-- Wait a bit to see if gift was successful
-					wait(2)
-
-					-- Check if pet is still in our inventory
+					-- Step 4: Try to gift the pet
+					Log("🎁 Attempting to gift pet...")
+					local giftSuccess = false
 					pcall(function()
-						local currentInventory = GetPetInventory()
-						if not currentInventory[pet.id] then
-							Log("✅ Confirmed: Pet " .. tostring(pet.name) .. " is no longer in inventory")
-						else
-							Log(
-								"⚠️ Warning: Pet "
-									.. tostring(pet.name)
-									.. " still in inventory - gift may have failed"
-							)
-						end
+						giftSuccess = GiftCurrentPet(targetPlayer)
 					end)
+
+					if giftSuccess then
+						giftedCount = giftedCount + 1
+						table.insert(GiftingState.GiftedPets, pet)
+						Log(
+							"🎉 Successfully gifted pet: "
+								.. tostring(pet.name)
+								.. " to "
+								.. tostring(targetPlayer.Name)
+						)
+
+						-- Wait a bit and check if gift was successful
+						wait(3)
+
+						pcall(function()
+							local currentInventory = GetPetInventory()
+							if not currentInventory[pet.id] then
+								Log("✅ Confirmed: Pet " .. tostring(pet.name) .. " is no longer in inventory")
+							else
+								Log(
+									"⚠️ Warning: Pet "
+										.. tostring(pet.name)
+										.. " still in inventory - gift may have failed"
+								)
+							end
+						end)
+					else
+						Log("❌ Failed to gift pet: " .. tostring(pet.name))
+
+						-- Try to put the pet back if gift failed
+						Log("🔄 Returning pet to equipped state...")
+						pcall(function()
+							if petTool and petTool.Parent == LocalPlayer.Character then
+								petTool.Parent = LocalPlayer.Backpack
+							end
+							EquipPet(pet.id, 1)
+						end)
+					end
 				else
-					Log("❌ Failed to gift pet: " .. tostring(pet.name))
+					Log("❌ Pet tool did not appear in character")
+					-- Try to re-equip the pet
+					pcall(function()
+						EquipPet(pet.id, 1)
+					end)
 				end
 			else
-				Log("❌ Pet did not appear in character after equipping")
-
-				-- Try alternative method - direct service call with the pet ID
-				Log("🔄 Trying direct pet gifting service...")
-				pcall(function()
-					local gameEvents = ReplicatedStorage:WaitForChild("GameEvents", 1)
-					if gameEvents then
-						local petGiftingRemote = gameEvents:FindFirstChild("PetGiftingService")
-						if petGiftingRemote then
-							petGiftingRemote:FireServer("GivePet", targetPlayer, pet.id)
-							Log("📡 Fired PetGiftingService remote with pet ID")
-						else
-							Log("❌ PetGiftingService remote not found")
-						end
-					else
-						Log("❌ GameEvents not found")
-					end
-				end)
+				Log("❌ Failed to convert pet to tool")
 			end
-
-			-- Always try to unequip after attempt
-			pcall(function()
-				UnequipPet(pet.id)
-			end)
 		else
 			Log("❌ Failed to equip pet: " .. tostring(pet.name))
 		end
