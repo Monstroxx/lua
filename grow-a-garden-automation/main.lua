@@ -41,53 +41,64 @@ local function SendWebhook(data)
         return false
     end
     
-    -- Check what HTTP functions are available
-    local httpFunction = nil
-    local httpName = "unknown"
-    
-    if syn and syn.request then
-        httpFunction = syn.request
-        httpName = "syn.request"
-    elseif request then
-        httpFunction = request
-        httpName = "request"
-    elseif http_request then
-        httpFunction = http_request
-        httpName = "http_request"
-    elseif getgenv and getgenv().request then
-        httpFunction = getgenv().request
-        httpName = "getgenv().request"
-    end
-    
-    if not httpFunction then
-        Log("❌ No HTTP request function available (syn.request, request, http_request)")
-        Log("❌ Available functions: " .. tostring(syn and "syn" or "no-syn") .. ", " .. tostring(request and "request" or "no-request") .. ", " .. tostring(http_request and "http_request" or "no-http_request"))
-        return false
-    end
-    
-    Log("📡 Using HTTP function: " .. httpName)
+    -- Debug: Check what's available
+    Log("🔍 Debug: syn=" .. tostring(syn) .. ", request=" .. tostring(request) .. ", http_request=" .. tostring(http_request))
     
     local success, result = pcall(function()
         local jsonData = game:GetService("HttpService"):JSONEncode(data)
+        Log("📋 JSON data prepared")
         
-        return httpFunction({
-            Url = Config.WebhookURL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = jsonData
-        })
+        -- Try different HTTP methods for executors
+        if syn and syn.request then
+            Log("📡 Trying syn.request...")
+            return syn.request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        elseif request then
+            Log("📡 Trying request...")
+            return request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        elseif http_request then
+            Log("📡 Trying http_request...")
+            return http_request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        elseif getgenv and getgenv().request then
+            Log("📡 Trying getgenv().request...")
+            return getgenv().request({
+                Url = Config.WebhookURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        else
+            Log("❌ No HTTP request function available")
+            Log("❌ Checked: syn.request, request, http_request, getgenv().request")
+            return nil
+        end
     end)
     
-    if success then
-        if result and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
-            Log("✅ Webhook sent successfully (Status: " .. result.StatusCode .. ")")
-            return true
-        else
-            Log("⚠️ Webhook response: " .. tostring(result and result.StatusCode or "no status"))
-            return true -- Still count as success if we got a response
-        end
+    if success and result then
+        Log("✅ Webhook sent successfully")
+        return true
     else
         Log("❌ Failed to send webhook: " .. tostring(result))
         return false
