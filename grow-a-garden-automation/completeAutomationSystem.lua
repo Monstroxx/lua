@@ -58,32 +58,20 @@ local AutomationConfig = {
     -- Auto Buy Settings
     AutoBuySeeds = {
         Enabled = false,
+        BuyAll = false,
         SelectedSeeds = {"Carrot", "Strawberry", "Blueberry"},
-        MaxSpend = 1000000,
-        KeepMinimum = 100000,
-        CheckInterval = 30,
-        MinStock = 10,
-        BuyUpTo = 50,
     },
     
     AutoBuyGear = {
         Enabled = false,
+        BuyAll = false,
         SelectedGear = {"Watering Can", "Trowel", "Basic Sprinkler"},
-        MaxSpend = 500000,
-        KeepMinimum = 100000,
-        CheckInterval = 60,
-        MinStock = 5,
-        BuyUpTo = 20,
     },
     
     AutoBuyEggs = {
         Enabled = false,
+        BuyAll = false,
         SelectedEggs = {"Common Egg", "Mythical Egg"},
-        MaxSpend = 2000000,
-        KeepMinimum = 500000,
-        CheckInterval = 45,
-        MinStock = 1,
-        BuyUpTo = 10,
     },
     
     -- Farming Settings
@@ -615,68 +603,124 @@ function ShopManager.NavigateToSeedShop()
 end
 
 function ShopManager.BuySeeds()
-    if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then 
-        print("❌ BuySeeds: Not enabled or config missing")
-        return 
-    end
+    local success, error = pcall(function()
+        if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then 
+            print("❌ BuySeeds: Not enabled or config missing")
+            return 
+        end
     
     print("🌱 BuySeeds: Starting seed purchase check...")
-    local backpack = DataManager.GetBackpack()
-    local sheckles = DataManager.GetSheckles()
-    print("💰 Current Sheckles:", sheckles)
     
-    if sheckles < (AutomationConfig.AutoBuySeeds.KeepMinimum or 100000) then
-        webhook:Log("WARN", "Not enough money to buy seeds safely")
+    -- Check if DataManager functions exist
+    print("🔍 Debug: DataManager exists:", DataManager ~= nil)
+    print("🔍 Debug: DataManager.GetBackpack exists:", DataManager.GetBackpack ~= nil)
+    print("🔍 Debug: DataManager.GetSheckles exists:", DataManager.GetSheckles ~= nil)
+    
+    local backpack, sheckles
+    
+    -- Safely get backpack
+    local success1, result1 = pcall(function()
+        return DataManager.GetBackpack()
+    end)
+    
+    if success1 then
+        backpack = result1
+        print("🔍 Debug: Backpack retrieved successfully")
+    else
+        print("❌ Debug: Failed to get backpack:", result1)
         return
     end
     
-    for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds or {}) do
+    -- Safely get sheckles
+    local success2, result2 = pcall(function()
+        return DataManager.GetSheckles()
+    end)
+    
+    if success2 then
+        sheckles = result2
+        print("💰 Current Sheckles:", sheckles)
+    else
+        print("❌ Debug: Failed to get sheckles:", result2)
+        return
+    end
+    
+    print("🔍 Debug: Backpack data:", backpack ~= nil)
+    if backpack then
+        print("🔍 Debug: Backpack type:", type(backpack))
+    end
+    
+    print("🔍 Debug: AutoBuySeeds config:", AutomationConfig.AutoBuySeeds)
+    print("🔍 Debug: BuyAll:", AutomationConfig.AutoBuySeeds.BuyAll)
+    print("🔍 Debug: SelectedSeeds:", AutomationConfig.AutoBuySeeds.SelectedSeeds)
+    
+    -- Get seeds to buy
+    local seedsToBuy = {}
+    if AutomationConfig.AutoBuySeeds.BuyAll then
+        -- Buy all available seeds
+        if SeedData then
+            for seedType, seedInfo in pairs(SeedData) do
+                if seedInfo.DisplayInShop then
+                    table.insert(seedsToBuy, seedType)
+                end
+            end
+        end
+    else
+        -- Buy only selected seeds
+        seedsToBuy = AutomationConfig.AutoBuySeeds.SelectedSeeds or {}
+    end
+    
+    print("🔍 Debug: Processing seeds:", #seedsToBuy, "seeds")
+    
+    for _, seedType in pairs(seedsToBuy) do
+        print("🔍 Debug: Checking seed type:", seedType)
         -- Use real game SeedData
+        print("🔍 Debug: SeedData exists:", SeedData ~= nil)
         local seedInfo = SeedData and SeedData[seedType]
+        print("🔍 Debug: SeedInfo for", seedType, ":", seedInfo ~= nil)
+        if seedInfo then
+            print("🔍 Debug: DisplayInShop:", seedInfo.DisplayInShop)
+        end
+        
         if not seedInfo or not seedInfo.DisplayInShop then
             webhook:Log("WARN", "Seed not available in shop", {SeedType = seedType})
             continue
         end
         
-        local seedName = seedInfo.SeedName
-        local currentStock = backpack[seedName] or 0
+        print("🔍 Debug: Attempting to buy seed:", seedType)
         
-        if currentStock < (AutomationConfig.AutoBuySeeds.MinStock or 10) then
-            
-            if seedInfo and sheckles >= seedInfo.Price + AutomationConfig.AutoBuySeeds.KeepMinimum then
-                local buyAmount = math.min(AutomationConfig.AutoBuySeeds.BuyUpTo - currentStock, 
-                                         math.floor((sheckles - AutomationConfig.AutoBuySeeds.KeepMinimum) / seedInfo.Price))
-                
-                if buyAmount > 0 then
-                    for i = 1, buyAmount do
-                        local success, error = pcall(function()
-                            -- Use Market.PromptPurchase with real PurchaseID
-                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                                Remotes.Market.PromptPurchase.send({
-                                    type = 1, -- Seeds type
-                                    id = seedInfo.PurchaseID
-                                })
-                            else
-                                error("Remotes.Market.PromptPurchase not available")
-                            end
-                        end)
-                        
-                        if success then
-                            webhook:Log("INFO", "Purchased seed", {SeedType = seedType, Price = seedInfo.Price})
-                            sheckles = sheckles - seedInfo.Price
-                            wait(1)
-                        else
-                            webhook:Log("ERROR", "Failed to buy seed", {Error = error})
-                            break
-                        end
-                        
-                        if sheckles < seedInfo.Price + AutomationConfig.AutoBuySeeds.KeepMinimum then
-                            break
-                        end
-                    end
+        -- Spam buy logic - buy all available stock
+        local purchaseCount = 0
+        local maxAttempts = 100 -- Prevent infinite loops
+        
+        for attempt = 1, maxAttempts do
+            local success, error = pcall(function()
+                -- Use GameEvents for in-game currency purchases (much cheaper!)
+                if game.ReplicatedStorage.GameEvents.BuySeedStock then
+                    game.ReplicatedStorage.GameEvents.BuySeedStock:FireServer(seedType)
+                else
+                    error("GameEvents.BuySeedStock not available")
                 end
+            end)
+            
+            if success then
+                purchaseCount = purchaseCount + 1
+                print("✅ Purchased seed:", seedType, "- Count:", purchaseCount)
+            else
+                print("❌ Stock empty or failed for seed:", seedType, "- Total bought:", purchaseCount)
+                if purchaseCount > 0 then
+                    webhook:Log("INFO", "Purchased seeds", {SeedType = seedType, Count = purchaseCount})
+                else
+                    webhook:Log("ERROR", "Failed to buy seed", {SeedType = seedType, Error = error})
+                end
+                break
             end
         end
+    end
+    end)
+    
+    if not success then
+        print("❌ BuySeeds ERROR:", error)
+        webhook:Log("ERROR", "BuySeeds function failed", {Error = error})
     end
 end
 
@@ -688,59 +732,53 @@ function ShopManager.BuyGear()
     end
     
     print("🔧 BuyGear: Starting gear purchase check...")
-    local backpack = DataManager.GetBackpack()
-    local sheckles = DataManager.GetSheckles()
-    print("💰 Current Sheckles:", sheckles)
     
-    if sheckles < AutomationConfig.AutoBuyGear.KeepMinimum then return end
-    
-    for _, gearType in pairs(AutomationConfig.AutoBuyGear.SelectedGear) do
-        local currentStock = backpack[gearType] or 0
-        
-        if currentStock < AutomationConfig.AutoBuyGear.MinStock then
-            -- Find gear info from real game GearData
-            local gearInfo = nil
-            if GearData and GearData[gearType] then
-                local gearData = GearData[gearType]
-                gearInfo = {
-                    name = gearType,
-                    price = gearData.Price,
-                    id = gearData.PurchaseID
-                }
-            end
-            
-            if gearInfo and sheckles >= gearInfo.price + AutomationConfig.AutoBuyGear.KeepMinimum then
-                local buyAmount = math.min(AutomationConfig.AutoBuyGear.BuyUpTo - currentStock,
-                                         math.floor((sheckles - AutomationConfig.AutoBuyGear.KeepMinimum) / gearInfo.price))
-                
-                if buyAmount > 0 then
-                    for i = 1, buyAmount do
-                        local success, error = pcall(function()
-                            -- Use Market.PromptPurchase with real PurchaseID
-                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                                Remotes.Market.PromptPurchase.send({
-                                    type = 2, -- Gear type
-                                    id = gearInfo.id
-                                })
-                            else
-                                error("Remotes.Market.PromptPurchase not available")
-                            end
-                        end)
-                        
-                        if success then
-                            webhook:Log("INFO", "Purchased gear", {GearType = gearType, Price = gearInfo.price})
-                            sheckles = sheckles - gearInfo.price
-                            wait(1)
-                        else
-                            webhook:Log("ERROR", "Failed to buy gear", {Error = error})
-                            break
-                        end
-                        
-                        if sheckles < gearInfo.price + AutomationConfig.AutoBuyGear.KeepMinimum then
-                            break
-                        end
-                    end
+    -- Get gear to buy
+    local gearToBuy = {}
+    if AutomationConfig.AutoBuyGear.BuyAll then
+        -- Buy all available gear
+        if GearData then
+            for gearType, gearInfo in pairs(GearData) do
+                if gearInfo.DisplayInShop then
+                    table.insert(gearToBuy, gearType)
                 end
+            end
+        end
+    else
+        -- Buy only selected gear
+        gearToBuy = AutomationConfig.AutoBuyGear.SelectedGear or {}
+    end
+    
+    print("🔍 Debug: Processing gear:", #gearToBuy, "gear")
+    
+    for _, gearType in pairs(gearToBuy) do
+        print("🔍 Debug: Attempting to buy gear:", gearType)
+        
+        -- Spam buy logic - buy all available stock
+        local purchaseCount = 0
+        local maxAttempts = 100 -- Prevent infinite loops
+        
+        for attempt = 1, maxAttempts do
+            local success, error = pcall(function()
+                -- Use GameEvents for in-game currency purchases (much cheaper!)
+                if game.ReplicatedStorage.GameEvents.BuyGearStock then
+                    game.ReplicatedStorage.GameEvents.BuyGearStock:FireServer(gearType)
+                else
+                    error("GameEvents.BuyGearStock not available")
+                end
+            end)
+            
+            if success then
+                purchaseCount = purchaseCount + 1
+                print("✅ Purchased gear:", gearType, "- Count:", purchaseCount)
+            else
+                print("❌ Stock empty or failed for gear:", gearType, "- Total bought:", purchaseCount)
+                if purchaseCount > 0 then
+                    webhook:Log("INFO", "Purchased gear", {GearType = gearType, Count = purchaseCount})
+                else
+                    webhook:Log("ERROR", "Failed to buy gear", {GearType = gearType, Error = error})
+                end
+                break
             end
         end
     end
@@ -754,54 +792,69 @@ function ShopManager.BuyEggs()
     end
     
     print("🥚 BuyEggs: Starting egg purchase check...")
-    local sheckles = DataManager.GetSheckles()
-    print("💰 Current Sheckles:", sheckles)
     
-    if sheckles < AutomationConfig.AutoBuyEggs.KeepMinimum then return end
+    -- Get eggs to buy
+    local eggsToBuy = {}
+    if AutomationConfig.AutoBuyEggs.BuyAll then
+        -- Buy all available eggs
+        if PetEggData then
+            for eggType, eggInfo in pairs(PetEggData) do
+                table.insert(eggsToBuy, eggType)
+            end
+        end
+    else
+        -- Buy only selected eggs
+        eggsToBuy = AutomationConfig.AutoBuyEggs.SelectedEggs or {}
+    end
     
-    for _, eggType in pairs(AutomationConfig.AutoBuyEggs.SelectedEggs) do
-        -- Find egg info from real game PetEggData
-        local eggInfo = nil
-        if PetEggData and PetEggData[eggType] then
-            local eggData = PetEggData[eggType]
-            eggInfo = {
-                name = eggType,
-                price = eggData.Price,
-                id = eggData.PurchaseID
-            }
+    print("🔍 Debug: Processing eggs:", #eggsToBuy, "eggs")
+    
+    for _, eggType in pairs(eggsToBuy) do
+        print("🔍 Debug: Attempting to buy egg:", eggType)
+        
+        -- Find egg index once
+        local eggIndex = nil
+        if PetEggData then
+            local index = 1
+            for eggName, _ in pairs(PetEggData) do
+                if eggName == eggType then
+                    eggIndex = index
+                    break
+                end
+                index = index + 1
+            end
         end
         
-        if eggInfo and sheckles >= eggInfo.price + AutomationConfig.AutoBuyEggs.KeepMinimum then
-            local buyAmount = math.min(AutomationConfig.AutoBuyEggs.BuyUpTo, 
-                                     math.floor((sheckles - AutomationConfig.AutoBuyEggs.KeepMinimum) / eggInfo.price))
-            
-            if buyAmount > 0 then
-                for i = 1, buyAmount do
-                    local success, error = pcall(function()
-                        -- Use Market.PromptPurchase with real PurchaseID
-                        if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                            Remotes.Market.PromptPurchase.send({
-                                type = 3, -- Eggs type
-                                id = eggInfo.id
-                            })
-                        else
-                            error("Remotes.Market.PromptPurchase not available")
-                        end
-                    end)
-                    
-                    if success then
-                        webhook:Log("INFO", "Purchased egg", {EggType = eggType, Price = eggInfo.price})
-                        sheckles = sheckles - eggInfo.price
-                        wait(2)
-                    else
-                        webhook:Log("ERROR", "Failed to buy egg", {Error = error})
-                        break
-                    end
-                    
-                    if sheckles < eggInfo.price + AutomationConfig.AutoBuyEggs.KeepMinimum then
-                        break
-                    end
+        if not eggIndex then
+            print("❌ Egg index not found for:", eggType)
+            continue
+        end
+        
+        -- Spam buy logic - buy all available stock
+        local purchaseCount = 0
+        local maxAttempts = 100 -- Prevent infinite loops
+        
+        for attempt = 1, maxAttempts do
+            local success, error = pcall(function()
+                -- Use GameEvents for in-game currency purchases (much cheaper!)
+                if game.ReplicatedStorage.GameEvents.BuyPetEgg then
+                    game.ReplicatedStorage.GameEvents.BuyPetEgg:FireServer(eggIndex)
+                else
+                    error("GameEvents.BuyPetEgg not available")
                 end
+            end)
+            
+            if success then
+                purchaseCount = purchaseCount + 1
+                print("✅ Purchased egg:", eggType, "- Count:", purchaseCount)
+            else
+                print("❌ Stock empty or failed for egg:", eggType, "- Total bought:", purchaseCount)
+                if purchaseCount > 0 then
+                    webhook:Log("INFO", "Purchased eggs", {EggType = eggType, Count = purchaseCount})
+                else
+                    webhook:Log("ERROR", "Failed to buy egg", {EggType = eggType, Error = error})
+                end
+                break
             end
         end
     end
