@@ -615,24 +615,74 @@ function ShopManager.NavigateToSeedShop()
 end
 
 function ShopManager.BuySeeds()
-    if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then 
-        print("❌ BuySeeds: Not enabled or config missing")
-        return 
-    end
+    local success, error = pcall(function()
+        if not AutomationConfig or not AutomationConfig.AutoBuySeeds or not AutomationConfig.AutoBuySeeds.Enabled then 
+            print("❌ BuySeeds: Not enabled or config missing")
+            return 
+        end
     
     print("🌱 BuySeeds: Starting seed purchase check...")
-    local backpack = DataManager.GetBackpack()
-    local sheckles = DataManager.GetSheckles()
-    print("💰 Current Sheckles:", sheckles)
+    
+    -- Check if DataManager functions exist
+    print("🔍 Debug: DataManager exists:", DataManager ~= nil)
+    print("🔍 Debug: DataManager.GetBackpack exists:", DataManager.GetBackpack ~= nil)
+    print("🔍 Debug: DataManager.GetSheckles exists:", DataManager.GetSheckles ~= nil)
+    
+    local backpack, sheckles
+    
+    -- Safely get backpack
+    local success1, result1 = pcall(function()
+        return DataManager.GetBackpack()
+    end)
+    
+    if success1 then
+        backpack = result1
+        print("🔍 Debug: Backpack retrieved successfully")
+    else
+        print("❌ Debug: Failed to get backpack:", result1)
+        return
+    end
+    
+    -- Safely get sheckles
+    local success2, result2 = pcall(function()
+        return DataManager.GetSheckles()
+    end)
+    
+    if success2 then
+        sheckles = result2
+        print("💰 Current Sheckles:", sheckles)
+    else
+        print("❌ Debug: Failed to get sheckles:", result2)
+        return
+    end
+    
+    print("🔍 Debug: Backpack data:", backpack ~= nil)
+    if backpack then
+        print("🔍 Debug: Backpack type:", type(backpack))
+    end
+    
+    print("🔍 Debug: AutoBuySeeds config:", AutomationConfig.AutoBuySeeds)
+    print("🔍 Debug: KeepMinimum:", AutomationConfig.AutoBuySeeds.KeepMinimum or 100000)
+    print("🔍 Debug: SelectedSeeds:", AutomationConfig.AutoBuySeeds.SelectedSeeds)
     
     if sheckles < (AutomationConfig.AutoBuySeeds.KeepMinimum or 100000) then
         webhook:Log("WARN", "Not enough money to buy seeds safely")
         return
     end
     
-    for _, seedType in pairs(AutomationConfig.AutoBuySeeds.SelectedSeeds or {}) do
+    local selectedSeeds = AutomationConfig.AutoBuySeeds.SelectedSeeds or {}
+    print("🔍 Debug: Processing seeds:", #selectedSeeds, "seeds")
+    
+    for _, seedType in pairs(selectedSeeds) do
+        print("🔍 Debug: Checking seed type:", seedType)
         -- Use real game SeedData
+        print("🔍 Debug: SeedData exists:", SeedData ~= nil)
         local seedInfo = SeedData and SeedData[seedType]
+        print("🔍 Debug: SeedInfo for", seedType, ":", seedInfo ~= nil)
+        if seedInfo then
+            print("🔍 Debug: DisplayInShop:", seedInfo.DisplayInShop)
+        end
+        
         if not seedInfo or not seedInfo.DisplayInShop then
             webhook:Log("WARN", "Seed not available in shop", {SeedType = seedType})
             continue
@@ -650,14 +700,11 @@ function ShopManager.BuySeeds()
                 if buyAmount > 0 then
                     for i = 1, buyAmount do
                         local success, error = pcall(function()
-                            -- Use Market.PromptPurchase with real PurchaseID
-                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                                Remotes.Market.PromptPurchase.send({
-                                    type = 1, -- Seeds type
-                                    id = seedInfo.PurchaseID
-                                })
+                            -- Use GameEvents for in-game currency purchases (much cheaper!)
+                            if game.ReplicatedStorage.GameEvents.BuySeedStock then
+                                game.ReplicatedStorage.GameEvents.BuySeedStock:FireServer(seedType)
                             else
-                                error("Remotes.Market.PromptPurchase not available")
+                                error("GameEvents.BuySeedStock not available")
                             end
                         end)
                         
@@ -677,6 +724,12 @@ function ShopManager.BuySeeds()
                 end
             end
         end
+    end
+    end)
+    
+    if not success then
+        print("❌ BuySeeds ERROR:", error)
+        webhook:Log("ERROR", "BuySeeds function failed", {Error = error})
     end
 end
 
@@ -716,14 +769,11 @@ function ShopManager.BuyGear()
                 if buyAmount > 0 then
                     for i = 1, buyAmount do
                         local success, error = pcall(function()
-                            -- Use Market.PromptPurchase with real PurchaseID
-                            if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                                Remotes.Market.PromptPurchase.send({
-                                    type = 2, -- Gear type
-                                    id = gearInfo.id
-                                })
+                            -- Use GameEvents for in-game currency purchases (much cheaper!)
+                            if game.ReplicatedStorage.GameEvents.BuyGearStock then
+                                game.ReplicatedStorage.GameEvents.BuyGearStock:FireServer(gearType)
                             else
-                                error("Remotes.Market.PromptPurchase not available")
+                                error("GameEvents.BuyGearStock not available")
                             end
                         end)
                         
@@ -778,14 +828,24 @@ function ShopManager.BuyEggs()
             if buyAmount > 0 then
                 for i = 1, buyAmount do
                     local success, error = pcall(function()
-                        -- Use Market.PromptPurchase with real PurchaseID
-                        if Remotes and Remotes.Market and Remotes.Market.PromptPurchase then
-                            Remotes.Market.PromptPurchase.send({
-                                type = 3, -- Eggs type
-                                id = eggInfo.id
-                            })
+                        -- Use GameEvents for in-game currency purchases (much cheaper!)
+                        -- Note: BuyPetEgg requires egg index, not name
+                        local eggIndex = nil
+                        if PetEggData then
+                            local index = 1
+                            for eggName, _ in pairs(PetEggData) do
+                                if eggName == eggType then
+                                    eggIndex = index
+                                    break
+                                end
+                                index = index + 1
+                            end
+                        end
+                        
+                        if game.ReplicatedStorage.GameEvents.BuyPetEgg and eggIndex then
+                            game.ReplicatedStorage.GameEvents.BuyPetEgg:FireServer(eggIndex)
                         else
-                            error("Remotes.Market.PromptPurchase not available")
+                            error("GameEvents.BuyPetEgg not available or egg index not found")
                         end
                     end)
                     
