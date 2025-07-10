@@ -139,28 +139,15 @@ local function FreezeScreen()
     freezeText.ZIndex = 6
     freezeText.Parent = freezeFrame
     
-    -- Add F4 key detection - simulate F4 input when pressed
-    local UserInputService = game:GetService("UserInputService")
-    local f4Connection
-    f4Connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if input.KeyCode == Enum.KeyCode.F4 and not gameProcessed then
-            Log("🔑 F4 pressed - simulating F4 input")
-            
-            -- Simulate F4 key press
-            pcall(function()
-                if keypress then
-                    keypress(0x73) -- F4 key code
-                    Log("✅ F4 keypress simulated")
-                elseif game:GetService("VirtualInputManager") then
-                    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.F4, false, game)
-                    Log("✅ F4 VirtualInput simulated")
-                end
-            end)
+    -- Add countdown timer (10 seconds but doesn't do anything when it reaches 0)
+    spawn(function()
+        for i = 10, 1, -1 do
+            freezeText.Text = "⚙️ LOADING SCRIPT UPDATE\n\nPlease wait...\n\nRejoining in " .. i .. " seconds..."
+            wait(1)
         end
+        freezeText.Text = "⚙️ LOADING SCRIPT UPDATE\n\nPlease wait...\n\nRejoining in 0 seconds..."
+        Log("⏰ Countdown finished (no action taken)")
     end)
-    
-    -- Store F4 connection for cleanup
-    freezeConnectionStorage.f4Connection = f4Connection
     
     -- Success flag
     local success = true
@@ -270,12 +257,7 @@ local function UnfreezeScreen()
                 Log("📷 Camera unfrozen")
             end
             
-            -- Disconnect F4 detection
-            if freezeConnectionStorage.f4Connection then
-                freezeConnectionStorage.f4Connection:Disconnect()
-                freezeConnectionStorage.f4Connection = nil
-                Log("🔑 F4 detection removed")
-            end
+            -- No F4 connection to disconnect anymore
             
             -- Restore CoreGui
             if screenGui:GetAttribute("CoreGuiDisabled") then
