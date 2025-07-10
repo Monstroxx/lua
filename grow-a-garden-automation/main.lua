@@ -14,7 +14,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 wait(3)
-loadstring(game:HttpGet("https://pastebin.com/raw/0C0ZCkps"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Monstroxx/grow-a-garden-automation/refs/heads/main/completeAutomationSystem.lua"))()
 -- Sicheres Service-Loading
 local function GetService(serviceName)
     local success, service = pcall(function()
