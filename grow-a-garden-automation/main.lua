@@ -118,69 +118,55 @@ local function FreezeScreen()
     flashFrame.ZIndex = 10
     flashFrame.Parent = screenGui
     
-    -- Create ViewportFrame for screenshot effect
-    local viewportFrame = Instance.new("ViewportFrame")
-    viewportFrame.Size = UDim2.new(1, 0, 1, 0)
-    viewportFrame.Position = UDim2.new(0, 0, 0, 0)
-    viewportFrame.BackgroundTransparency = 1
-    viewportFrame.ZIndex = 5
-    viewportFrame.Parent = screenGui
+    -- Create simple black freeze screen with text
+    local freezeFrame = Instance.new("Frame")
+    freezeFrame.Size = UDim2.new(1, 0, 1, 0)
+    freezeFrame.Position = UDim2.new(0, 0, 0, 0)
+    freezeFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    freezeFrame.BorderSizePixel = 0
+    freezeFrame.ZIndex = 5
+    freezeFrame.Parent = screenGui
     
-    -- Create WorldModel and clone workspace
-    local worldModel = Instance.new("WorldModel")
-    worldModel.Parent = viewportFrame
+    -- Add loading text
+    local freezeText = Instance.new("TextLabel")
+    freezeText.Size = UDim2.new(0.6, 0, 0.2, 0)
+    freezeText.Position = UDim2.new(0.2, 0, 0.4, 0)
+    freezeText.BackgroundTransparency = 1
+    freezeText.Text = "⚙️ LOADING SCRIPT UPDATE\n\nPlease wait...\n\nRejoining in 10 seconds..."
+    freezeText.TextColor3 = Color3.new(1, 1, 1)
+    freezeText.TextScaled = true
+    freezeText.Font = Enum.Font.GothamBold
+    freezeText.ZIndex = 6
+    freezeText.Parent = freezeFrame
     
-    -- Create and setup viewport camera
-    local viewportCamera = Instance.new("Camera")
-    viewportCamera.CFrame = frozenCFrame
-    viewportCamera.FieldOfView = camera.FieldOfView
-    viewportCamera.Parent = viewportFrame
-    viewportFrame.CurrentCamera = viewportCamera
-    
-    -- Clone current workspace state INCLUDING character (better method)
-    local success, error = pcall(function()
-        -- First clone Terrain specifically
-        local terrain = workspace:FindFirstChild("Terrain")
-        if terrain then
-            local terrainClone = terrain:Clone()
-            terrainClone.Parent = worldModel
-            Log("✅ Terrain cloned")
-        end
-        
-        -- Clone character specifically first
-        if LocalPlayer.Character then
-            local characterClone = LocalPlayer.Character:Clone()
-            characterClone.Parent = worldModel
-            Log("✅ Character cloned successfully")
-        end
-        
-        -- Clone all other workspace objects (except CurrentCamera and Terrain)
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= LocalPlayer.Character and obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
-                local cloneSuccess, clone = pcall(function()
-                    return obj:Clone()
-                end)
-                if cloneSuccess and clone then
-                    clone.Parent = worldModel
-                    Log("✅ Cloned: " .. obj.Name)
+    -- Add F4 key detection - simulate F4 input when pressed
+    local UserInputService = game:GetService("UserInputService")
+    local f4Connection
+    f4Connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.F4 and not gameProcessed then
+            Log("🔑 F4 pressed - simulating F4 input")
+            
+            -- Simulate F4 key press
+            pcall(function()
+                if keypress then
+                    keypress(0x73) -- F4 key code
+                    Log("✅ F4 keypress simulated")
+                elseif game:GetService("VirtualInputManager") then
+                    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.F4, false, game)
+                    Log("✅ F4 VirtualInput simulated")
                 end
-            end
+            end)
         end
     end)
     
-    -- Wait a moment for the clone to complete before hiding the real world
-    wait(0.1)
+    -- Store F4 connection for cleanup
+    freezeConnectionStorage.f4Connection = f4Connection
     
-    -- Hide the real world (but keep Terrain and CurrentCamera)
-    pcall(function()
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= workspace.CurrentCamera and obj.Name ~= "Terrain" then
-                obj.Parent = game:GetService("Lighting")
-                Log("🫥 Hidden: " .. obj.Name)
-            end
-        end
-        Log("🌍 Real world hidden, screenshot world visible")
-    end)
+    -- Success flag
+    local success = true
+    
+    -- No need to hide world with black screen approach
+    Log("🌍 Black freeze screen active")
     
     -- Freeze camera position AFTER cloning and hiding
     cameraConnection = RunService.Heartbeat:Connect(function()
@@ -284,6 +270,13 @@ local function UnfreezeScreen()
                 Log("📷 Camera unfrozen")
             end
             
+            -- Disconnect F4 detection
+            if freezeConnectionStorage.f4Connection then
+                freezeConnectionStorage.f4Connection:Disconnect()
+                freezeConnectionStorage.f4Connection = nil
+                Log("🔑 F4 detection removed")
+            end
+            
             -- Restore CoreGui
             if screenGui:GetAttribute("CoreGuiDisabled") then
                 local StarterGui = game:GetService("StarterGui")
@@ -336,14 +329,8 @@ local function UnfreezeScreen()
             screenGui:Destroy()
         end
         
-        -- Restore hidden objects from Lighting back to workspace
-        for _, obj in pairs(Lighting:GetChildren()) do
-            if obj.Name ~= "Atmosphere" and obj.Name ~= "Bloom" and obj.Name ~= "Blur" and 
-               obj.Name ~= "ColorCorrection" and obj.Name ~= "DepthOfField" and obj.Name ~= "SunRays" and
-               obj.Name ~= "Sky" and obj.Name ~= "Clouds" then
-                obj.Parent = workspace
-            end
-        end
+        -- No world objects to restore with black screen approach
+        Log("🔓 Black freeze screen removed")
         
         return true
     end)
