@@ -794,14 +794,7 @@ local function IsServerPrivate()
             Log("🔒 Private server detected via PrivateServerId")
             return
         end
-        
-        -- Methode 2: Sehr kleine MaxPlayers (konservativ - nur bei <=4 Spielern)
-        if Players.MaxPlayers <= 4 then
-            isPrivate = true
-            Log("🔒 Private server detected via very small MaxPlayers: " .. Players.MaxPlayers)
-            return
-        end
-        
+ 
         -- Methode 3: Kombiniere mehrere Indikatoren für bessere Sicherheit
         local suspiciousFactors = 0
         
@@ -816,12 +809,6 @@ local function IsServerPrivate()
         if game.PlaceVersion == 0 then
             suspiciousFactors = suspiciousFactors + 1
             Log("⚠️ PlaceVersion 0 detected")
-        end
-        
-        -- Wenige Spieler UND kleine MaxPlayers
-        if Players.MaxPlayers <= 12 and #Players:GetPlayers() <= 2 then
-            suspiciousFactors = suspiciousFactors + 1
-            Log("⚠️ Small server with few players detected")
         end
         
         -- Nur als privat markieren wenn mehrere Faktoren zutreffen
