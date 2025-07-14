@@ -797,15 +797,31 @@ local function ServerHop(isInitialHop)
     
     -- Use TeleportService to hop to a new server with auto-execute data
     local TeleportService = game:GetService("TeleportService")
+    
+    -- Set global variable for post-hop detection (fallback method)
+    _G.AutoTraderHopData = {
+        autoExecuteScript = true,
+        scriptUrl = "https://raw.githubusercontent.com/Monstroxx/lua/refs/heads/main/grow-a-garden-automation/main.lua",
+        originalScript = "auto-trader",
+        hopReason = hopReason,
+        timestamp = tick()
+    }
+    
     local success, error = pcall(function()
-        TeleportService:TeleportAsync(game.PlaceId, {LocalPlayer}, {
-            TeleportData = {
-                autoExecuteScript = true,
-                scriptUrl = "https://raw.githubusercontent.com/Monstroxx/lua/refs/heads/main/grow-a-garden-automation/main.lua",
-                originalScript = "auto-trader",
-                hopReason = hopReason
-            }
-        })
+        -- Try TeleportAsync first
+        if TeleportService.TeleportAsync then
+            TeleportService:TeleportAsync(game.PlaceId, {LocalPlayer}, {
+                TeleportData = {
+                    autoExecuteScript = true,
+                    scriptUrl = "https://raw.githubusercontent.com/Monstroxx/lua/refs/heads/main/grow-a-garden-automation/main.lua",
+                    originalScript = "auto-trader",
+                    hopReason = hopReason
+                }
+            })
+        else
+            -- Fallback to simple Teleport
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
     end)
     
     if success then
@@ -988,12 +1004,27 @@ end
 local function Main()
     Log("🌱 Gifting system started, looking for: " .. table.concat(Config.TargetPlayerNames, ", "))
     
-    -- Check if this is a post-hop execution
+    -- Check if this is a post-hop execution (try both methods)
     local TeleportService = game:GetService("TeleportService")
     local teleportData = nil
+    
+    -- Method 1: Try TeleportData
     pcall(function()
         teleportData = TeleportService:GetLocalPlayerTeleportData()
     end)
+    
+    -- Method 2: Check global variable as fallback
+    if not teleportData or not teleportData.autoExecuteScript then
+        if _G.AutoTraderHopData and _G.AutoTraderHopData.autoExecuteScript then
+            -- Check if the data is fresh (within last 30 seconds to avoid old data)
+            if tick() - _G.AutoTraderHopData.timestamp < 30 then
+                teleportData = _G.AutoTraderHopData
+                Log("🔄 Using fallback hop data detection")
+            else
+                _G.AutoTraderHopData = nil -- Clean up old data
+            end
+        end
+    end
     
     if teleportData and teleportData.autoExecuteScript then
         Log("🎯 Post-hop execution detected!")
