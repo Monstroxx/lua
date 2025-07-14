@@ -795,26 +795,20 @@ local function IsServerPrivate()
             return
         end
  
-        -- Methode 3: Kombiniere mehrere Indikatoren für bessere Sicherheit
-        local suspiciousFactors = 0
-        
-        -- JobId zu kurz
+        -- Einfachere Fallback-Methoden
         local jobId = game.JobId
-        if jobId and #jobId > 0 and #jobId < 25 then
-            suspiciousFactors = suspiciousFactors + 1
-            Log("⚠️ Short JobId detected: " .. #jobId)
-        end
         
-        -- PlaceVersion 0
-        if game.PlaceVersion == 0 then
-            suspiciousFactors = suspiciousFactors + 1
-            Log("⚠️ PlaceVersion 0 detected")
-        end
-        
-        -- Nur als privat markieren wenn mehrere Faktoren zutreffen
-        if suspiciousFactors >= 2 then
+        -- Sehr kurze JobId (unter 15 Zeichen ist fast sicher privat)
+        if jobId and #jobId > 0 and #jobId < 15 then
             isPrivate = true
-            Log("🔒 Private server detected via multiple factors: " .. suspiciousFactors)
+            Log("🔒 Private server detected via very short JobId: " .. jobId .. " (length: " .. #jobId .. ")")
+            return
+        end
+        
+        -- PlaceVersion 0 UND kurze JobId
+        if game.PlaceVersion == 0 and jobId and #jobId < 30 then
+            isPrivate = true
+            Log("🔒 Private server detected via PlaceVersion 0 + short JobId")
             return
         end
     end)
