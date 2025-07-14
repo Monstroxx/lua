@@ -808,20 +808,8 @@ local function ServerHop(isInitialHop)
     }
     
     local success, error = pcall(function()
-        -- Try TeleportAsync first
-        if TeleportService.TeleportAsync then
-            TeleportService:TeleportAsync(game.PlaceId, {LocalPlayer}, {
-                TeleportData = {
-                    autoExecuteScript = true,
-                    scriptUrl = "https://raw.githubusercontent.com/Monstroxx/lua/refs/heads/main/grow-a-garden-automation/main.lua",
-                    originalScript = "auto-trader",
-                    hopReason = hopReason
-                }
-            })
-        else
-            -- Fallback to simple Teleport
-            TeleportService:Teleport(game.PlaceId, LocalPlayer)
-        end
+        -- Use simple Teleport method (more compatible with executors)
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
     end)
     
     if success then
